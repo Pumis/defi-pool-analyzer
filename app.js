@@ -16,6 +16,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 app.use(cors());
 app.use(express.json());
+// Test route - add this line
+app.get('/', (req, res) => {
+  res.json({ message: 'DeFi Pool Analyzer is working!', timestamp: new Date() });
+});
 
 // Health scoring algorithm
 function calculateHealthScore(poolData) {
@@ -358,3 +362,4 @@ app.listen(PORT, () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
