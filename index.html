@@ -932,8 +932,36 @@
         });
         
         document.getElementById('timePeriod').addEventListener('change', () => {
-            renderChart();
+            const period = document.getElementById('timePeriod').value;
+            console.log('Time period changed to:', period);
+            
+            // Update chart data based on selected period
+            if (selectedPool) {
+                updateChartForPeriod(selectedPool, period);
+            }
         });
+        
+        function updateChartForPeriod(pool, period) {
+            const days = {
+                '7d': 7,
+                '30d': 30,
+                '90d': 90,
+                '1y': 365
+            };
+            
+            const daysToShow = days[period] || 30;
+            const filteredData = pool.historical.slice(-daysToShow);
+            
+            if (performanceChart) {
+                performanceChart.data.labels = filteredData.map(h => h.date);
+                performanceChart.data.datasets[0].data = filteredData.map(h => h.tvl / 1000000);
+                performanceChart.data.datasets[1].data = filteredData.map(h => h.apr);
+                performanceChart.data.datasets[2].data = filteredData.map(h => h.healthScore);
+                
+                performanceChart.options.plugins.title.text = `${pool.tokenPair} - ${period.toUpperCase()} Performance`;
+                performanceChart.update();
+            }
+        }
         
         // Initialize the app when page loads
         document.addEventListener('DOMContentLoaded', initApp);
