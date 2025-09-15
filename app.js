@@ -96,22 +96,13 @@ async function fetchUniswapPools() {
       {
         pools(first: 50, orderBy: totalValueLockedUSD, orderDirection: desc) {
           id
-          token0 {
-            symbol
-            name
-          }
-          token1 {
-            symbol
-            name
-          }
+          token0 { symbol name }
+          token1 { symbol name }
           totalValueLockedUSD
           volumeUSD
           feeTier
           poolDayData(first: 30, orderBy: date, orderDirection: desc) {
-            date
-            tvlUSD
-            volumeUSD
-            feesUSD
+            date tvlUSD volumeUSD feesUSD
           }
         }
       }
@@ -121,9 +112,16 @@ async function fetchUniswapPools() {
       query
     });
 
-    return response.data?.data?.pools || [];
+    console.log('The Graph response status:', response.status);
+    console.log('The Graph response data:', JSON.stringify(response.data, null, 2));
+
+    const pools = response.data?.data?.pools || [];
+    console.log('Number of pools received:', pools.length);
+    
+    return pools;
   } catch (error) {
     console.error('Error fetching Uniswap data:', error.message);
+    console.error('Full error:', error);
     return [];
   }
 }
@@ -372,4 +370,5 @@ app.listen(PORT, () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
 
