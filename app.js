@@ -86,6 +86,7 @@ async function fetchUniswapPools() {
     const response = await axios.post(endpoint, { query }, {
       timeout: 25000,
       headers: { 'Content-Type': 'application/json' }
+      console.log('Raw response from The Graph:', JSON.stringify(response.data, null, 2));
     });
 
     if (response.data?.data?.pools && response.data.data.pools.length > 0) {
@@ -325,6 +326,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
 
 
 
