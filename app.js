@@ -456,32 +456,53 @@ app.get('/api/pools', async (req, res) => {
   }
 });
 
-app.get('/api/pools/:poolId', async (req, res) => {
+app.get('/api/pools', async (req, res) => {
   try {
-    const { poolId } = req.params;
-    
-    const { data, error } = await supabase
-      .from('pools')
-      .select('*')
-      .eq('pool_id', poolId)
-      .single();
+    const { platform = 'uniswap-v3', days = 30, limit = 50 } = req.query;
 
-    if (error) {
-      throw error;
+    let pools = [];
+    
+    if (platform === 'uniswap-v3') {
+      pools = await fetchUniswapPools(parseInt(days));
     }
+    // Optional: handle other protocols like Curve, Balancer here
 
     res.json({
       success: true,
-      data: data
+      data: pools.slice(0, parseInt(limit)),
+      count: pools.length
     });
   } catch (error) {
-    console.error('Error fetching pool:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('Error fetching pools:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
+
+async function fetchUniswapPools(days = 30) {
+  const query = `
+    {
+      pools(first: 50, orderBy: totalValueLockedUSD, orderDirection: desc, where: {totalValueLockedUSD_gt: "10000"}) {
+        id
+        token0 { symbol name id }
+        token1 { symbol name id }
+        totalValueLockedUSD
+        volumeUSD
+        feeTier
+        poolDayData(first: ${days}, orderBy: date, orderDirection: desc) {
+          date
+          tvlUSD
+          volumeUSD
+          feesUSD
+        }
+      }
+    }
+  `;
+  // ...rest of your code unchanged
+}
+
+
+});
+
 
 app.get('/api/metrics', async (req, res) => {
   try {
@@ -569,4 +590,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
 
