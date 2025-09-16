@@ -665,12 +665,20 @@
             }
             
             const pool = selectedPool || poolsData[0];
-            if (!pool) return;
+            if (!pool || !pool.historical) return;
             
-            const labels = pool.historical.map(h => h.date);
-            const tvlData = pool.historical.map(h => h.tvl / 1000000);
-            const aprData = pool.historical.map(h => h.apr);
-            const healthData = pool.historical.map(h => h.healthScore);
+            // Get selected time period
+            const timePeriod = document.getElementById('timePeriod').value;
+            const daysMap = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 };
+            const daysToShow = daysMap[timePeriod] || 30;
+            
+            // Filter historical data based on selected period
+            const historicalData = pool.historical.slice(-daysToShow);
+            
+            const labels = historicalData.map(h => h.date);
+            const tvlData = historicalData.map(h => h.tvl / 1000000);
+            const aprData = historicalData.map(h => h.apr);
+            const healthData = historicalData.map(h => h.healthScore);
             
             performanceChart = new Chart(ctx, {
                 type: 'line',
@@ -708,7 +716,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `${pool.tokenPair} - 30 Day Performance`
+                            text: `${pool.tokenPair} - ${timePeriod.toUpperCase()} Performance (${historicalData.length} days)`
                         }
                     },
                     scales: {
