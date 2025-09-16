@@ -555,8 +555,18 @@ setTimeout(async () => {
   console.log('Loading initial data...');
   await processPoolData();
 }, 5000);
+app.get('/api/refresh', async (req, res) => {
+  console.log('Manual refresh triggered (GET)...');
+  const pools = await processPoolData();
+  res.json({
+    success: true,
+    message: `Refreshed ${pools.length} pools (via GET)`,
+    data: pools.slice(0, 10)
+  });
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
