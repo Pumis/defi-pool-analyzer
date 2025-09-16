@@ -1,38 +1,20 @@
-// server.js - Complete DeFi Pool Analyzer Backend
+// app.js - DeFi Pool Analyzer Backend (updated for true Uniswap V3 mainnet subgraph and improved error handling)
+// Author: Pumis (and Copilot)
+// Requirements: Node.js, express, axios, cors, node-cron, dotenv (and optionally @supabase/supabase-js if using Supabase)
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cron = require('node-cron');
-const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Supabase setup
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
 app.use(cors());
 app.use(express.json());
 
-// Add this route for the base URL
-app.get('/', (req, res) => {
-  res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API',
-    status: 'running',
-    endpoints: {
-      health: '/api/health',
-      pools: '/api/pools',
-      metrics: '/api/metrics',
-      refresh: '/api/refresh'
-    },
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Health scoring algorithm
+// --- Health scoring algorithm ---
 function calculateHealthScore(poolData) {
   const {
     tvl,
@@ -59,7 +41,7 @@ function calculateHealthScore(poolData) {
   const ilRisk = Math.max(0, 25 - (volatility * 50));
 
   const totalScore = tvlStability + aprConsistency + volumeEfficiency + ilRisk;
-  
+
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: {
@@ -78,18 +60,7 @@ function calculateVariance(values) {
   return Math.sqrt(variance) / mean; // Coefficient of variation
 }
 
-// Data fetching functions
-async function fetchDefiLlamaData() {
-  try {
-    console.log('Fetching DeFiLlama data...');
-    const response = await axios.get('https://api.llama.fi/protocols');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching DeFiLlama data:', error.message);
-    return [];
-  }
-}
-
+// --- Uniswap V3 subgraph: true mainnet endpoint, fetch 10 pools, 90 days per pool ---
 async function fetchUniswapPools() {
   try {
     console.log('Fetching Uniswap pools from official public endpoint...');
@@ -131,45 +102,20 @@ async function fetchUniswapPools() {
   }
 }
 
-    if (pools.length === 0) {
-      console.log('All endpoints failed, generating mock data...');
-      return generateMockUniswapPools();
-    }
+// --- Pool data processing (no database needed for demo; all in memory) ---
+let cachedPools = [];
+let lastUpdated = null;
 
-    return pools;
-  } catch (error) {
-    console.error('Error fetching Uniswap data:', error.message);
-    console.log('Falling back to mock data...');
-    return generateMockUniswapPools();
-  }
-}
-
-// Add mock data generator (unchanged, but not used if real data is returned)
-function generateMockUniswapPools() {
-  // ... unchanged ...
-}
-
-function generateMockDayData() {
-  // ... unchanged ...
-}
-
-async function fetchTokenPrices(tokenIds) {
-  try {
-    const ids = tokenIds.join(',');
-    const response = await axios.get(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching token prices:', error.message);
-    return {};
-  }
-}
-
-// Process and store pool data
 async function processPoolData() {
   try {
     console.log('Starting data processing...');
-    
     const uniswapPools = await fetchUniswapPools();
+
+    if (!Array.isArray(uniswapPools) || uniswapPools.length === 0) {
+      console.error('No pools returned. Skipping processing.');
+      return [];
+    }
+
     const processedPools = [];
 
     for (const pool of uniswapPools) {
@@ -177,12 +123,12 @@ async function processPoolData() {
         const tokenPair = `${pool.token0.symbol}/${pool.token1.symbol}`;
         const tvl = parseFloat(pool.totalValueLockedUSD);
         const volume24h = parseFloat(pool.volumeUSD);
-        
+
         // Extract historical data (reversed for chronological order)
         const tvlHistory = pool.poolDayData.map(day => parseFloat(day.tvlUSD)).reverse();
         const volumeHistory = pool.poolDayData.map(day => parseFloat(day.volumeUSD)).reverse();
         const feesHistory = pool.poolDayData.map(day => parseFloat(day.feesUSD)).reverse();
-        
+
         // Calculate APR history (fees / TVL * 365)
         const aprHistory = pool.poolDayData.map(day => {
           const dailyFees = parseFloat(day.feesUSD);
@@ -203,7 +149,7 @@ async function processPoolData() {
         };
 
         const healthScore = calculateHealthScore(poolData);
-        
+
         const processedPool = {
           pool_id: pool.id,
           platform: 'uniswap-v3',
@@ -225,6 +171,7 @@ async function processPoolData() {
             fees: feesHistory,
             apr: aprHistory,
             dates: pool.poolDayData.map(day => {
+              // TheGraph returns days as unix-timestamp-in-seconds
               const timestamp = parseInt(day.date);
               return new Date(timestamp * 1000).toISOString().split('T')[0];
             }).reverse()
@@ -237,19 +184,10 @@ async function processPoolData() {
       }
     }
 
-    // Store in Supabase
-    if (processedPools.length > 0) {
-      const { data, error } = await supabase
-        .from('pools')
-        .upsert(processedPools, { onConflict: 'pool_id' });
+    cachedPools = processedPools;
+    lastUpdated = new Date().toISOString();
 
-      if (error) {
-        console.error('Error storing pools:', error);
-      } else {
-        console.log(`Successfully stored ${processedPools.length} pools`);
-      }
-    }
-
+    console.log(`Processed and cached ${processedPools.length} pools.`);
     return processedPools;
   } catch (error) {
     console.error('Error in processPoolData:', error);
@@ -257,51 +195,133 @@ async function processPoolData() {
   }
 }
 
-// API Routes (unchanged from your original)
-app.get('/api/pools', async (req, res) => {
-  // ... unchanged ...
-});
+// --- API routes ---
 
-app.get('/api/pools/:poolId', async (req, res) => {
-  // ... unchanged ...
-});
-
-app.get('/api/metrics', async (req, res) => {
-  // ... unchanged ...
-});
-
-app.post('/api/refresh', async (req, res) => {
-  // ... unchanged ...
+app.get('/', (req, res) => {
+  res.json({
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      pools: '/api/pools',
+      metrics: '/api/metrics',
+      refresh: '/api/refresh'
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get('/api/health', (req, res) => {
-  // ... unchanged ...
+  res.json({ status: 'ok', lastUpdated });
 });
 
-// Schedule data updates every hour
+app.get('/api/pools', async (req, res) => {
+  try {
+    // Query params: platform, minTvl, limit
+    let { platform, minTvl, limit } = req.query;
+    minTvl = minTvl ? parseFloat(minTvl) : 0;
+    limit = limit ? parseInt(limit) : 10;
+
+    let pools = cachedPools;
+    if (platform && platform !== 'all') {
+      pools = pools.filter(p => p.platform === platform);
+    }
+    if (minTvl) {
+      pools = pools.filter(p => p.tvl >= minTvl);
+    }
+
+    pools = pools.slice(0, limit);
+
+    res.json({
+      success: true,
+      lastUpdated,
+      data: pools
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/pools/:poolId', async (req, res) => {
+  try {
+    const { poolId } = req.params;
+    const pool = cachedPools.find(p => p.pool_id === poolId);
+    if (!pool) {
+      return res.status(404).json({ success: false, error: 'Pool not found' });
+    }
+    res.json({ success: true, data: pool });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/metrics', async (req, res) => {
+  try {
+    const pools = cachedPools;
+    const totalPools = pools.length;
+    const averageHealthScore = totalPools
+      ? pools.reduce((sum, p) => sum + p.health_score, 0) / totalPools
+      : 0;
+    const totalTvl = pools.reduce((sum, p) => sum + p.tvl, 0);
+    const highRiskPools = pools.filter(p => p.health_score < 50).length;
+    const totalVolume24h = pools.reduce((sum, p) => sum + p.volume_24h, 0);
+
+    res.json({
+      success: true,
+      data: {
+        totalPools,
+        averageHealthScore,
+        totalTvl,
+        highRiskPools,
+        totalVolume24h
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/refresh', async (req, res) => {
+  try {
+    console.log('Manual refresh triggered (POST)...');
+    const pools = await processPoolData();
+    res.json({
+      success: true,
+      message: `Refreshed ${pools.length} pools (manual POST)`,
+      data: pools.slice(0, 5)
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/refresh', async (req, res) => {
+  try {
+    console.log('Manual refresh triggered (GET)...');
+    const pools = await processPoolData();
+    res.json({
+      success: true,
+      message: `Refreshed ${pools.length} pools (manual GET)`,
+      data: pools.slice(0, 5)
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// --- Scheduled data update every hour ---
 cron.schedule('0 * * * *', async () => {
   console.log('Running scheduled data update...');
   await processPoolData();
 });
 
-// Initial data load on startup
+// --- Initial data load on startup ---
 setTimeout(async () => {
   console.log('Loading initial data...');
   await processPoolData();
 }, 5000);
 
-app.get('/api/refresh', async (req, res) => {
-  console.log('Manual refresh triggered (GET)...');
-  const pools = await processPoolData();
-  res.json({
-    success: true,
-    message: `Refreshed ${pools.length} pools (via GET)`,
-    data: pools.slice(0, 10)
-  });
-});
-
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
-
