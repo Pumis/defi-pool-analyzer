@@ -394,6 +394,18 @@
     </div>
 
     <script>
+        // --- Add these two functions at the very top of your <script> block ---
+        function getQueryParam(name) {
+            const url = new URL(window.location);
+            return url.searchParams.get(name);
+        }
+        function setQueryParam(name, value) {
+            const url = new URL(window.location);
+            url.searchParams.set(name, value);
+            window.history.replaceState({}, '', url);
+        }
+        // --- End helpers ---
+
         // Your Railway API URL
         const API_BASE_URL = 'https://defi-pool-health.up.railway.app/api';
         
@@ -404,6 +416,10 @@
         
         // Initialize the application
         async function initApp() {
+            // Set dropdown to URL value if present, else default to "30d"
+            const periodFromUrl = getQueryParam('period') || '30d';
+            document.getElementById('timePeriod').value = periodFromUrl;
+
             showStatus('Initializing DeFi Pool Analyzer...', 'info');
             await fetchRealPoolData();
             renderPools();
@@ -941,11 +957,14 @@
         
         document.getElementById('timePeriod').addEventListener('change', () => {
             const period = document.getElementById('timePeriod').value;
+            setQueryParam('period', period); // <-- update the URL
             console.log('Time period changed to:', period);
             
             // Update chart data based on selected period
             if (selectedPool) {
                 updateChartForPeriod(selectedPool, period);
+            } else {
+                renderChart();
             }
         });
         
