@@ -1,6 +1,6 @@
-// app.js - DeFi Pool Analyzer Backend (updated for true Uniswap V3 mainnet subgraph and improved error handling)
+// app.js - DeFi Pool Analyzer Backend (fixed for correct response logging and subgraph query)
 // Author: Pumis (and Copilot)
-// Requirements: Node.js, express, axios, cors, node-cron, dotenv (and optionally @supabase/supabase-js if using Supabase)
+// Requirements: Node.js, express, axios, cors, node-cron, dotenv
 
 const express = require('express');
 const cors = require('cors');
@@ -63,10 +63,10 @@ function calculateVariance(values) {
 // --- Uniswap V3 subgraph: true mainnet endpoint, fetch 10 pools, 90 days per pool ---
 async function fetchUniswapPools() {
   try {
-    console.log('Fetching Uniswap pools from official public endpoint...');
+    console.log('Fetching Uniswap pools from The Graph decentralized endpoint...');
     const query = `
       {
-        pools(first: 10, orderBy: totalValueLockedUSD, orderDirection: desc, where: {totalValueLockedUSD_gt: "10000"}) {
+        pools(first: 10, orderBy: totalValueLockedUSD, orderDirection: desc) {
           id
           token0 { symbol name id }
           token1 { symbol name id }
@@ -82,12 +82,19 @@ async function fetchUniswapPools() {
         }
       }
     `;
+
+    // !! IMPORTANT !!
+    // Replace <YOUR_API_KEY> with your actual The Graph API key
+    // Confirm the correct subgraph ID for Uniswap V3 mainnet at https://thegraph.com/explorer/subgraphs?query=uniswap-v3
     const endpoint = 'https://gateway.thegraph.com/api/192fc0f16279da99ab2ccde25879abca/subgraphs/id/QmVfG9N5K5y6KJ1WjQm9XjZzZjED3ko8bG9oAM1zXc5VCT';
+
     const response = await axios.post(endpoint, { query }, {
       timeout: 25000,
       headers: { 'Content-Type': 'application/json' }
-      console.log('Raw response from The Graph:', JSON.stringify(response.data, null, 2));
     });
+
+    // Log the full raw response for debugging
+    console.log('Raw response from The Graph:', JSON.stringify(response.data, null, 2));
 
     if (response.data?.data?.pools && response.data.data.pools.length > 0) {
       console.log(`Success! Got ${response.data.data.pools.length} pools from Uniswap V3`);
@@ -326,10 +333,3 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
-
-
-
-
-
-
-
