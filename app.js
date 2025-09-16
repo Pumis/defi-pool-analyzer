@@ -92,27 +92,17 @@ async function fetchDefiLlamaData() {
 
 async function fetchUniswapPools() {
   try {
-    console.log('Fetching Uniswap pools from new endpoint...');
-    
-    // Use the new decentralized endpoint
+    console.log('Fetching Uniswap pools from official public endpoint...');
     const query = `
       {
-        pools(first: 50, orderBy: totalValueLockedUSD, orderDirection: desc, where: {totalValueLockedUSD_gt: "10000"}) {
+        pools(first: 10, orderBy: totalValueLockedUSD, orderDirection: desc, where: {totalValueLockedUSD_gt: "10000"}) {
           id
-          token0 {
-            symbol
-            name
-            id
-          }
-          token1 {
-            symbol
-            name
-            id
-          }
+          token0 { symbol name id }
+          token1 { symbol name id }
           totalValueLockedUSD
           volumeUSD
           feeTier
-          poolDayData(first: 365, orderBy: date, orderDirection: desc) {
+          poolDayData(first: 90, orderBy: date, orderDirection: desc) {
             date
             tvlUSD
             volumeUSD
@@ -121,42 +111,25 @@ async function fetchUniswapPools() {
         }
       }
     `;
+    const endpoint = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3';
+    const response = await axios.post(endpoint, { query }, {
+      timeout: 25000,
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-    // Try multiple endpoints - The Graph has moved to decentralized hosting
-    const endpoints = [
-      'https://gateway-arbitrum.network.thegraph.com/api/[api-key]/subgraphs/id/5zvR82QoaXuFyDwA2Zb3h6Jp1jHzRjHD6YHqKxjXGKNx',
-      'https://api.studio.thegraph.com/query/63859/uniswap-v3-mainnet/version/latest',
-      'https://api.thegraph.com/subgraphs/id/5zvR82QoaXuFyDwA2Zb3h6Jp1jHzRjHD6YHqKxjXGKNx'
-    ];
-
-    let pools = [];
-    
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`Trying endpoint: ${endpoint}`);
-        
-        const response = await axios.post(endpoint, { query }, {
-          timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
-        console.log('Response status:', response.status);
-        console.log('Response data:', JSON.stringify(response.data, null, 2));
-
-        if (response.data?.data?.pools && response.data.data.pools.length > 0) {
-          pools = response.data.data.pools;
-          console.log(`Success! Got ${pools.length} pools from ${endpoint}`);
-          break;
-        } else if (response.data?.errors) {
-          console.log('API returned errors:', response.data.errors);
-        }
-      } catch (endpointError) {
-        console.log(`Endpoint ${endpoint} failed:`, endpointError.message);
-        continue;
-      }
+    if (response.data?.data?.pools && response.data.data.pools.length > 0) {
+      console.log(`Success! Got ${response.data.data.pools.length} pools from Uniswap V3`);
+      return response.data.data.pools;
+    } else if (response.data?.errors) {
+      console.log('API returned errors:', response.data.errors);
+      return [];
     }
+    return [];
+  } catch (error) {
+    console.error('Error fetching Uniswap data:', error.message);
+    return [];
+  }
+}
 
     if (pools.length === 0) {
       console.log('All endpoints failed, generating mock data...');
@@ -331,3 +304,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
