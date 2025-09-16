@@ -1,5 +1,3 @@
-Cant i put that code in my app.js file that looks like this somewhere?
-
 // server.js - Complete DeFi Pool Analyzer Backend
 const express = require('express');
 const cors = require('cors');
@@ -571,3 +569,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
