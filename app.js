@@ -86,7 +86,7 @@ async function fetchUniswapPools() {
     // !! IMPORTANT !!
     // Replace <YOUR_API_KEY> with your actual The Graph API key
     // Confirm the correct subgraph ID for Uniswap V3 mainnet at https://thegraph.com/explorer/subgraphs?query=uniswap-v3
-    const endpoint = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3';
+    const endpoint = 'https://gateway.thegraph.com/api/192fc0f16279da99ab2ccde25879abca/subgraphs/id/5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV';
     const response = await axios.post(endpoint, { query }, {
       timeout: 25000,
       headers: { 'Content-Type': 'application/json' }
@@ -332,4 +332,5 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
 
