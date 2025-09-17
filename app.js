@@ -1,4 +1,4 @@
-// app.js - DeFi Pool Analyzer Backend (DefiLlama version, pools with 1y+ chart data)
+// app.js - DeFi Pool Analyzer Backend (DefiLlama version, pools with 1y+ chart data, throttled requests)
 // Author: Pumis (and Copilot)
 // Requirements: Node.js, express, axios, cors, node-cron, dotenv
 
@@ -104,6 +104,10 @@ async function fetchDefiLlamaPoolChart(poolId) {
   }
 }
 
+function delay(ms) {
+  return new Promise(res => setTimeout(res, ms));
+}
+
 // --- Pool data processing (no database needed for demo; all in memory) ---
 let cachedPools = [];
 let lastUpdated = null;
@@ -127,7 +131,8 @@ async function processPoolData() {
       if (added >= 100) break; // You can increase this number if you want
       checked++;
       try {
-        // Get chart data (historical TVL, APR, volume, fees, dates) for each pool
+        // Add a 500ms delay between requests to avoid rate limiting
+        await delay(500);
         const chart = await fetchDefiLlamaPoolChart(pool.pool);
 
         if (!hasYearOfData(chart)) {
@@ -219,7 +224,7 @@ async function processPoolData() {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, 1y chart only)',
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, 1y chart only, throttled)',
     status: 'running',
     endpoints: {
       health: '/api/health',
@@ -342,6 +347,6 @@ setTimeout(async () => {
 }, 5000);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama, 1y chart) running on port ${PORT}`);
+  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama, 1y chart, throttled) running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
