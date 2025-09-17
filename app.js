@@ -1,4 +1,4 @@
-// app.js - DeFi Pool Analyzer Backend (DefiLlama version, debugged chart fetching, relaxed filter, robust throttling, persistent pool rotation)
+// app.js - DeFi Pool Analyzer Backend (DefiLlama version, robust chart checks, debug, robust throttling, persistent pool rotation)
 // Author: Pumis (and Copilot)
 // Requirements: Node.js, express, axios, cors, node-cron, dotenv, fs (node built-in)
 
@@ -106,7 +106,12 @@ async function fetchDefiLlamaPoolChart(poolId) {
   try {
     const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
     const response = await axios.get(url, { timeout: 20000 });
-    return response.data.data || {};
+    if (response.data && response.data.success && response.data.data) {
+      return response.data.data;
+    } else {
+      console.warn(`No chart data in response for pool ${poolId} (response: ${JSON.stringify(response.data).slice(0, 150)}...)`);
+      return {};
+    }
   } catch (error) {
     if (error.response && error.response.status === 429) {
       // Wait and retry once if rate limited (simple retry logic)
@@ -115,7 +120,12 @@ async function fetchDefiLlamaPoolChart(poolId) {
       try {
         const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
         const response = await axios.get(url, { timeout: 20000 });
-        return response.data.data || {};
+        if (response.data && response.data.success && response.data.data) {
+          return response.data.data;
+        } else {
+          console.warn(`No chart data in retry response for pool ${poolId} (response: ${JSON.stringify(response.data).slice(0, 150)}...)`);
+          return {};
+        }
       } catch (retryError) {
         console.error(`Still rate limited or failed after retry for pool ${poolId}:`, retryError.message);
         return {};
@@ -175,7 +185,8 @@ async function processPoolData() {
         await delay(DELAY_BETWEEN_REQUESTS);
         const chart = await fetchDefiLlamaPoolChart(pool.pool);
 
-        // Debug logging: show chart tvl length and warn if none
+        // Debug logging: show full chart object and tvl length
+        console.log(`Chart API raw response for pool ${pool.pool} (${pool.symbol}): ${JSON.stringify(chart).slice(0, 500)}`);
         console.log(`Pool ${pool.pool} (${pool.symbol}) chart.tvl length:`, Array.isArray(chart.tvl) ? chart.tvl.length : 'N/A');
         if (!Array.isArray(chart.tvl) || chart.tvl.length === 0) {
           console.warn(`No chart data for pool ${pool.pool} (${pool.symbol})`);
@@ -274,7 +285,7 @@ async function processPoolData() {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, debug chart fetching, relaxed filter, robust throttling/rotation)',
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, robust chart checks, debug, throttling/rotation)',
     status: 'running',
     endpoints: {
       health: '/api/health',
@@ -397,6 +408,6 @@ setTimeout(async () => {
 }, 5000);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DeFi Pool Health Analyzer API (DefiLlama, debug chart, relaxed filter, throttling/rotation) running on port ${PORT}`);
+  console.log(`🚀 DeFi Pool Health Analyzer API (DefiLlama, robust chart checks, throttling/rotation) running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
