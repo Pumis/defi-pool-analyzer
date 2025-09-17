@@ -1,4 +1,4 @@
-// app.js - DeFi Pool Analyzer Backend (DefiLlama version, pools with 1y+ chart data, robust throttling, persistent pool rotation)
+// app.js - DeFi Pool Analyzer Backend (DefiLlama version, debugged chart fetching, relaxed filter, robust throttling, persistent pool rotation)
 // Author: Pumis (and Copilot)
 // Requirements: Node.js, express, axios, cors, node-cron, dotenv, fs (node built-in)
 
@@ -67,15 +67,10 @@ function calculateVariance(values) {
 const DEFI_LLAMA_POOLS_URL = "https://yields.llama.fi/pools";
 const DEFI_LLAMA_POOL_CHART_URL = "https://yields.llama.fi/chart/";
 
-// Helper: Checks if chart data has at least 365 distinct days
-function hasYearOfData(chart) {
+// Helper: Checks if chart data has at least 30 days (relaxed for debugging)
+function hasMonthOfData(chart) {
   if (!chart || !Array.isArray(chart.tvl)) return false;
-  const DAYS_REQUIRED = 365;
-  if (chart.tvl.length < DAYS_REQUIRED) return false;
-  // Ensure the first entry is at least ~1y older than the last
-  const first = chart.tvl[0].date;
-  const last = chart.tvl[chart.tvl.length - 1].date;
-  return (last - first) >= 3600 * 24 * 300; // 300 days minimum
+  return chart.tvl.length >= 30;
 }
 
 async function fetchDefiLlamaUniswapV3Pools() {
@@ -180,7 +175,14 @@ async function processPoolData() {
         await delay(DELAY_BETWEEN_REQUESTS);
         const chart = await fetchDefiLlamaPoolChart(pool.pool);
 
-        if (!hasYearOfData(chart)) continue;
+        // Debug logging: show chart tvl length and warn if none
+        console.log(`Pool ${pool.pool} (${pool.symbol}) chart.tvl length:`, Array.isArray(chart.tvl) ? chart.tvl.length : 'N/A');
+        if (!Array.isArray(chart.tvl) || chart.tvl.length === 0) {
+          console.warn(`No chart data for pool ${pool.pool} (${pool.symbol})`);
+        }
+
+        // Relaxed filter: accept pools with at least 30 days of data for debugging
+        if (!hasMonthOfData(chart)) continue;
 
         const tvlHistory = Array.isArray(chart.tvl)
           ? chart.tvl.slice(-maxHistory).map(h => h.totalLiquidityUSD ?? h.tvl ?? 0)
@@ -250,9 +252,7 @@ async function processPoolData() {
     // Update persistent index for rotation
     writeLastProcessedIndex((lastIndex + POOLS_PER_REFRESH) % uniswapPools.length);
 
-    // Here, you can choose to merge processedPools into cachedPools for accumulation, or just replace on each refresh.
-    // We'll accumulate pools with unique pool_id for best UX.
-    // If you want to clear on every refresh, just assign processedPools to cachedPools.
+    // Accumulate pools with unique pool_id for best UX.
     let mergedPools = Array.isArray(cachedPools) ? [...cachedPools] : [];
     for (const pool of processedPools) {
       const idx = mergedPools.findIndex(p => p.pool_id === pool.pool_id);
@@ -274,7 +274,7 @@ async function processPoolData() {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, 1y chart only, robust throttling/rotation)',
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, debug chart fetching, relaxed filter, robust throttling/rotation)',
     status: 'running',
     endpoints: {
       health: '/api/health',
@@ -397,6 +397,6 @@ setTimeout(async () => {
 }, 5000);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama, 1y chart, robust throttling/rotation) running on port ${PORT}`);
+  console.log(`🚀 DeFi Pool Health Analyzer API (DefiLlama, debug chart, relaxed filter, throttling/rotation) running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
