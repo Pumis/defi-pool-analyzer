@@ -1,4 +1,4 @@
-// app.js - DeFi Pool Analyzer Backend (DefiLlama version for Uniswap V3 mainnet pools)
+// app.js - DeFi Pool Analyzer Backend (DefiLlama version, pools with 1y+ chart data)
 // Author: Pumis (and Copilot)
 // Requirements: Node.js, express, axios, cors, node-cron, dotenv
 
@@ -64,6 +64,17 @@ function calculateVariance(values) {
 const DEFI_LLAMA_POOLS_URL = "https://yields.llama.fi/pools";
 const DEFI_LLAMA_POOL_CHART_URL = "https://yields.llama.fi/chart/";
 
+// Helper: Checks if chart data has at least 365 distinct days
+function hasYearOfData(chart) {
+  if (!chart || !Array.isArray(chart.tvl)) return false;
+  const DAYS_REQUIRED = 365;
+  if (chart.tvl.length < DAYS_REQUIRED) return false;
+  // Ensure the first entry is at least ~1y older than the last
+  const first = chart.tvl[0].date;
+  const last = chart.tvl[chart.tvl.length - 1].date;
+  return (last - first) >= 3600 * 24 * 300; // 300 days minimum
+}
+
 async function fetchDefiLlamaUniswapV3Pools() {
   try {
     console.log('Fetching Uniswap V3 pools from DefiLlama API...');
@@ -73,7 +84,7 @@ async function fetchDefiLlamaUniswapV3Pools() {
     const uniswapPools = allPools.filter(pool =>
       pool.project === "uniswap-v3" && pool.chain === "Ethereum"
     );
-    console.log(`Success! Got ${uniswapPools.length} Uniswap V3 mainnet pools from DefiLlama`);
+    console.log(`Found ${uniswapPools.length} Uniswap V3 mainnet pools from DefiLlama`);
     return uniswapPools;
   } catch (error) {
     console.error('Error fetching DefiLlama pool data:', error.message);
@@ -107,40 +118,55 @@ async function processPoolData() {
       return [];
     }
 
-    // Limit to 10 pools for demo and performance
-    const poolsToProcess = uniswapPools.slice(0, 10);
-
+    // Try as many pools as possible, but only keep those with at least 1y of chart data
     const processedPools = [];
-    for (const pool of poolsToProcess) {
+    let checked = 0;
+    let added = 0;
+
+    for (const pool of uniswapPools) {
+      if (added >= 100) break; // You can increase this number if you want
+      checked++;
       try {
         // Get chart data (historical TVL, APR, volume, fees, dates) for each pool
         const chart = await fetchDefiLlamaPoolChart(pool.pool);
 
-        // Prepare historical arrays, up to 90 days if available
-        const maxHistory = 90;
-        const tvlHistory = chart.tvl ? chart.tvl.slice(-maxHistory) : [];
-        const aprHistory = chart.apy ? chart.apy.slice(-maxHistory) : [];
-        const volumeHistory = chart.volume ? chart.volume.slice(-maxHistory) : [];
-        const feesHistory = chart.fees ? chart.fees.slice(-maxHistory) : [];
-        const dates = chart.tvl ? chart.tvl.slice(-maxHistory).map(e =>
-          new Date(e.date * 1000).toISOString().split('T')[0]
-        ) : [];
+        if (!hasYearOfData(chart)) {
+          // Skip if insufficient chart data
+          continue;
+        }
+
+        // Prepare historical arrays, last 365 days
+        const maxHistory = 365;
+        const tvlHistory = Array.isArray(chart.tvl)
+          ? chart.tvl.slice(-maxHistory).map(h => h.totalLiquidityUSD ?? h.tvl ?? 0)
+          : [];
+        const aprHistory = Array.isArray(chart.apy)
+          ? chart.apy.slice(-maxHistory).map(h => h.apy ?? h.apr ?? 0)
+          : [];
+        const volumeHistory = Array.isArray(chart.volume)
+          ? chart.volume.slice(-maxHistory).map(h => h.volume ?? 0)
+          : [];
+        const feesHistory = Array.isArray(chart.fees)
+          ? chart.fees.slice(-maxHistory).map(h => h.fees ?? 0)
+          : [];
+        const dates = Array.isArray(chart.tvl)
+          ? chart.tvl.slice(-maxHistory).map(e =>
+              new Date(e.date * 1000).toISOString().split('T')[0]
+            )
+          : [];
 
         // Current TVL/volume/APR
-        const tvl = pool.tvlUsd || (tvlHistory.length > 0 ? tvlHistory[tvlHistory.length - 1].totalLiquidityUSD : 0);
-        const volume24h = pool.volumeUsd1d || (volumeHistory.length > 0 ? volumeHistory[volumeHistory.length - 1].volume : 0);
+        const tvl = pool.tvlUsd || (tvlHistory.length > 0 ? tvlHistory[tvlHistory.length - 1] : 0);
+        const volume24h = pool.volumeUsd1d || (volumeHistory.length > 0 ? volumeHistory[volumeHistory.length - 1] : 0);
 
         // Calculate volatility (price change variance) and health score
-        const tvlVals = tvlHistory.map(h => h.totalLiquidityUSD || h.tvl || 0);
-        const aprVals = aprHistory.map(h => h.apy || h.apr || 0);
-
-        const volatility = calculateVariance(tvlVals);
+        const volatility = calculateVariance(tvlHistory);
 
         const poolData = {
           tvl,
           volume24h,
-          aprHistory: aprVals,
-          tvlHistory: tvlVals,
+          aprHistory,
+          tvlHistory,
           volatility,
           liquidityDepth: tvl / 1000000
         };
@@ -163,15 +189,16 @@ async function processPoolData() {
           il_risk_score: healthScore.breakdown.ilRisk,
           last_updated: new Date().toISOString(),
           historical_data: {
-            tvl: tvlVals,
-            volume: volumeHistory.map(h => h.volume || 0),
-            fees: feesHistory.map(h => h.fees || 0),
-            apr: aprVals,
+            tvl: tvlHistory,
+            volume: volumeHistory,
+            fees: feesHistory,
+            apr: aprHistory,
             dates: dates
           }
         };
 
         processedPools.push(processedPool);
+        added++;
       } catch (error) {
         console.error(`Error processing pool ${pool.pool}:`, error.message);
       }
@@ -180,7 +207,7 @@ async function processPoolData() {
     cachedPools = processedPools;
     lastUpdated = new Date().toISOString();
 
-    console.log(`Processed and cached ${processedPools.length} pools.`);
+    console.log(`Processed ${checked} pools, cached ${added} pools with >=1 year of chart data.`);
     return processedPools;
   } catch (error) {
     console.error('Error in processPoolData:', error);
@@ -192,7 +219,7 @@ async function processPoolData() {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version)',
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, 1y chart only)',
     status: 'running',
     endpoints: {
       health: '/api/health',
@@ -213,7 +240,7 @@ app.get('/api/pools', async (req, res) => {
     // Query params: platform, minTvl, limit
     let { platform, minTvl, limit } = req.query;
     minTvl = minTvl ? parseFloat(minTvl) : 0;
-    limit = limit ? parseInt(limit) : 10;
+    limit = limit ? parseInt(limit) : 1000;
 
     let pools = cachedPools;
     if (platform && platform !== 'all') {
@@ -315,6 +342,6 @@ setTimeout(async () => {
 }, 5000);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama) running on port ${PORT}`);
+  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama, 1y chart) running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
