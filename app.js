@@ -1,15 +1,18 @@
-// app.js - DeFi Pool Analyzer Backend (DefiLlama version, pools with 1y+ chart data, throttled requests)
+// app.js - DeFi Pool Analyzer Backend (DefiLlama version, pools with 1y+ chart data, robust throttling, persistent pool rotation)
 // Author: Pumis (and Copilot)
-// Requirements: Node.js, express, axios, cors, node-cron, dotenv
+// Requirements: Node.js, express, axios, cors, node-cron, dotenv, fs (node built-in)
 
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cron = require('node-cron');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const POOLS_CACHE_FILE = './uniswapv3_pool_ids_cache.json';
+const PROCESSED_INDEX_FILE = './last_processed_pool_index.json';
 
 app.use(cors());
 app.use(express.json());
@@ -77,6 +80,15 @@ function hasYearOfData(chart) {
 
 async function fetchDefiLlamaUniswapV3Pools() {
   try {
+    // Use a local cache if available to avoid repeated API calls
+    if (fs.existsSync(POOLS_CACHE_FILE)) {
+      const cached = JSON.parse(fs.readFileSync(POOLS_CACHE_FILE, 'utf8'));
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        console.log(`Loaded ${cached.length} Uniswap V3 mainnet pools from local cache`);
+        return cached;
+      }
+    }
+
     console.log('Fetching Uniswap V3 pools from DefiLlama API...');
     const response = await axios.get(DEFI_LLAMA_POOLS_URL, { timeout: 25000 });
     // Filter to Uniswap V3 on Ethereum (mainnet)
@@ -85,6 +97,8 @@ async function fetchDefiLlamaUniswapV3Pools() {
       pool.project === "uniswap-v3" && pool.chain === "Ethereum"
     );
     console.log(`Found ${uniswapPools.length} Uniswap V3 mainnet pools from DefiLlama`);
+    // Save to local cache
+    fs.writeFileSync(POOLS_CACHE_FILE, JSON.stringify(uniswapPools, null, 2));
     return uniswapPools;
   } catch (error) {
     console.error('Error fetching DefiLlama pool data:', error.message);
@@ -96,9 +110,22 @@ async function fetchDefiLlamaUniswapV3Pools() {
 async function fetchDefiLlamaPoolChart(poolId) {
   try {
     const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
-    const response = await axios.get(url, { timeout: 15000 });
+    const response = await axios.get(url, { timeout: 20000 });
     return response.data.data || {};
   } catch (error) {
+    if (error.response && error.response.status === 429) {
+      // Wait and retry once if rate limited (simple retry logic)
+      console.warn(`Rate limited on pool ${poolId}. Waiting 2.5 seconds and retrying...`);
+      await delay(2500);
+      try {
+        const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
+        const response = await axios.get(url, { timeout: 20000 });
+        return response.data.data || {};
+      } catch (retryError) {
+        console.error(`Still rate limited or failed after retry for pool ${poolId}:`, retryError.message);
+        return {};
+      }
+    }
     console.error(`Error fetching chart data for pool ${poolId}:`, error.message);
     return {};
   }
@@ -108,9 +135,20 @@ function delay(ms) {
   return new Promise(res => setTimeout(res, ms));
 }
 
-// --- Pool data processing (no database needed for demo; all in memory) ---
+// --- Pool data processing (persistent rotation, throttled, robust) ---
 let cachedPools = [];
 let lastUpdated = null;
+
+function readLastProcessedIndex() {
+  if (fs.existsSync(PROCESSED_INDEX_FILE)) {
+    const idx = JSON.parse(fs.readFileSync(PROCESSED_INDEX_FILE, 'utf8'));
+    if (typeof idx === 'number' && idx >= 0) return idx;
+  }
+  return 0;
+}
+function writeLastProcessedIndex(idx) {
+  fs.writeFileSync(PROCESSED_INDEX_FILE, JSON.stringify(idx));
+}
 
 async function processPoolData() {
   try {
@@ -127,10 +165,16 @@ async function processPoolData() {
     let checked = 0;
     let added = 0;
     const POOLS_PER_REFRESH = 20;
-    const DELAY_BETWEEN_REQUESTS = 1200; // 1.2 seconds
+    const DELAY_BETWEEN_REQUESTS = 1800; // 1.8 seconds (strict for DefiLlama rate limit)
+    const maxHistory = 365;
 
-    for (const pool of uniswapPools) {
-      if (added >= POOLS_PER_REFRESH) break;
+    // Rotate through the pool list over time, persist index to disk
+    let lastIndex = readLastProcessedIndex();
+    if (lastIndex >= uniswapPools.length) lastIndex = 0;
+
+    for (let i = 0; i < POOLS_PER_REFRESH; i++) {
+      const poolIdx = (lastIndex + i) % uniswapPools.length;
+      const pool = uniswapPools[poolIdx];
       checked++;
       try {
         await delay(DELAY_BETWEEN_REQUESTS);
@@ -138,7 +182,6 @@ async function processPoolData() {
 
         if (!hasYearOfData(chart)) continue;
 
-        const maxHistory = 365;
         const tvlHistory = Array.isArray(chart.tvl)
           ? chart.tvl.slice(-maxHistory).map(h => h.totalLiquidityUSD ?? h.tvl ?? 0)
           : [];
@@ -204,10 +247,22 @@ async function processPoolData() {
       }
     }
 
-    cachedPools = processedPools;
+    // Update persistent index for rotation
+    writeLastProcessedIndex((lastIndex + POOLS_PER_REFRESH) % uniswapPools.length);
+
+    // Here, you can choose to merge processedPools into cachedPools for accumulation, or just replace on each refresh.
+    // We'll accumulate pools with unique pool_id for best UX.
+    // If you want to clear on every refresh, just assign processedPools to cachedPools.
+    let mergedPools = Array.isArray(cachedPools) ? [...cachedPools] : [];
+    for (const pool of processedPools) {
+      const idx = mergedPools.findIndex(p => p.pool_id === pool.pool_id);
+      if (idx >= 0) mergedPools[idx] = pool;
+      else mergedPools.push(pool);
+    }
+    cachedPools = mergedPools;
     lastUpdated = new Date().toISOString();
 
-    console.log(`Processed ${checked} pools, cached ${added} pools with >=1 year of chart data.`);
+    console.log(`Processed ${checked} pools, added/updated ${added} pools this run. Total cached: ${cachedPools.length}`);
     return processedPools;
   } catch (error) {
     console.error('Error in processPoolData:', error);
@@ -219,7 +274,7 @@ async function processPoolData() {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, 1y chart only, throttled)',
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version, 1y chart only, robust throttling/rotation)',
     status: 'running',
     endpoints: {
       health: '/api/health',
@@ -342,6 +397,6 @@ setTimeout(async () => {
 }, 5000);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama, 1y chart, throttled) running on port ${PORT}`);
+  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama, 1y chart, robust throttling/rotation) running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
