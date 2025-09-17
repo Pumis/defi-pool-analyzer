@@ -122,25 +122,22 @@ async function processPoolData() {
       return [];
     }
 
-    // Try as many pools as possible, but only keep those with at least 1y of chart data
+    // Only process up to 20 pools per refresh to avoid rate limiting
     const processedPools = [];
     let checked = 0;
     let added = 0;
+    const POOLS_PER_REFRESH = 20;
+    const DELAY_BETWEEN_REQUESTS = 1200; // 1.2 seconds
 
     for (const pool of uniswapPools) {
-      if (added >= 100) break; // You can increase this number if you want
+      if (added >= POOLS_PER_REFRESH) break;
       checked++;
       try {
-        // Add a 500ms delay between requests to avoid rate limiting
-        await delay(500);
+        await delay(DELAY_BETWEEN_REQUESTS);
         const chart = await fetchDefiLlamaPoolChart(pool.pool);
 
-        if (!hasYearOfData(chart)) {
-          // Skip if insufficient chart data
-          continue;
-        }
+        if (!hasYearOfData(chart)) continue;
 
-        // Prepare historical arrays, last 365 days
         const maxHistory = 365;
         const tvlHistory = Array.isArray(chart.tvl)
           ? chart.tvl.slice(-maxHistory).map(h => h.totalLiquidityUSD ?? h.tvl ?? 0)
@@ -160,11 +157,9 @@ async function processPoolData() {
             )
           : [];
 
-        // Current TVL/volume/APR
         const tvl = pool.tvlUsd || (tvlHistory.length > 0 ? tvlHistory[tvlHistory.length - 1] : 0);
         const volume24h = pool.volumeUsd1d || (volumeHistory.length > 0 ? volumeHistory[volumeHistory.length - 1] : 0);
 
-        // Calculate volatility (price change variance) and health score
         const volatility = calculateVariance(tvlHistory);
 
         const poolData = {
