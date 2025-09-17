@@ -1,4 +1,4 @@
-// app.js - DeFi Pool Analyzer Backend (fixed for correct response logging and subgraph query)
+// app.js - DeFi Pool Analyzer Backend (DefiLlama version for Uniswap V3 mainnet pools)
 // Author: Pumis (and Copilot)
 // Requirements: Node.js, express, axios, cors, node-cron, dotenv
 
@@ -60,52 +60,36 @@ function calculateVariance(values) {
   return Math.sqrt(variance) / mean; // Coefficient of variation
 }
 
-// --- Uniswap V3 subgraph: true mainnet endpoint, fetch 10 pools, 90 days per pool ---
-async function fetchUniswapPools() {
+// --- DefiLlama integration for Uniswap V3 mainnet pools ---
+const DEFI_LLAMA_POOLS_URL = "https://yields.llama.fi/pools";
+const DEFI_LLAMA_POOL_CHART_URL = "https://yields.llama.fi/chart/";
+
+async function fetchDefiLlamaUniswapV3Pools() {
   try {
-    console.log('Fetching Uniswap pools from The Graph decentralized endpoint...');
-    const query = `
-      {
-        pools(first: 10, orderBy: totalValueLockedUSD, orderDirection: desc) {
-          id
-          token0 { symbol name id }
-          token1 { symbol name id }
-          totalValueLockedUSD
-          volumeUSD
-          feeTier
-          poolDayData(first: 90, orderBy: date, orderDirection: desc) {
-            date
-            tvlUSD
-            volumeUSD
-            feesUSD
-          }
-        }
-      }
-    `;
-
-    // !! IMPORTANT !!
-    // Replace <YOUR_API_KEY> with your actual The Graph API key
-    // Confirm the correct subgraph ID for Uniswap V3 mainnet at https://thegraph.com/explorer/subgraphs?query=uniswap-v3
-    const endpoint = 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3';
-    const response = await axios.post(endpoint, { query }, {
-      timeout: 25000,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    // Log the full raw response for debugging
-    console.log('Raw response from The Graph:', JSON.stringify(response.data, null, 2));
-
-    if (response.data?.data?.pools && response.data.data.pools.length > 0) {
-      console.log(`Success! Got ${response.data.data.pools.length} pools from Uniswap V3`);
-      return response.data.data.pools;
-    } else if (response.data?.errors) {
-      console.log('API returned errors:', response.data.errors);
-      return [];
-    }
-    return [];
+    console.log('Fetching Uniswap V3 pools from DefiLlama API...');
+    const response = await axios.get(DEFI_LLAMA_POOLS_URL, { timeout: 25000 });
+    // Filter to Uniswap V3 on Ethereum (mainnet)
+    const allPools = response.data.data;
+    const uniswapPools = allPools.filter(pool =>
+      pool.project === "uniswap-v3" && pool.chain === "Ethereum"
+    );
+    console.log(`Success! Got ${uniswapPools.length} Uniswap V3 mainnet pools from DefiLlama`);
+    return uniswapPools;
   } catch (error) {
-    console.error('Error fetching Uniswap data:', error.message);
+    console.error('Error fetching DefiLlama pool data:', error.message);
     return [];
+  }
+}
+
+// Get historical TVL, APR, and volume for a pool from DefiLlama chart API
+async function fetchDefiLlamaPoolChart(poolId) {
+  try {
+    const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
+    const response = await axios.get(url, { timeout: 15000 });
+    return response.data.data || {};
+  } catch (error) {
+    console.error(`Error fetching chart data for pool ${poolId}:`, error.message);
+    return {};
   }
 }
 
@@ -116,41 +100,47 @@ let lastUpdated = null;
 async function processPoolData() {
   try {
     console.log('Starting data processing...');
-    const uniswapPools = await fetchUniswapPools();
+    const uniswapPools = await fetchDefiLlamaUniswapV3Pools();
 
     if (!Array.isArray(uniswapPools) || uniswapPools.length === 0) {
       console.error('No pools returned. Skipping processing.');
       return [];
     }
 
+    // Limit to 10 pools for demo and performance
+    const poolsToProcess = uniswapPools.slice(0, 10);
+
     const processedPools = [];
-
-    for (const pool of uniswapPools) {
+    for (const pool of poolsToProcess) {
       try {
-        const tokenPair = `${pool.token0.symbol}/${pool.token1.symbol}`;
-        const tvl = parseFloat(pool.totalValueLockedUSD);
-        const volume24h = parseFloat(pool.volumeUSD);
+        // Get chart data (historical TVL, APR, volume, fees, dates) for each pool
+        const chart = await fetchDefiLlamaPoolChart(pool.pool);
 
-        // Extract historical data (reversed for chronological order)
-        const tvlHistory = pool.poolDayData.map(day => parseFloat(day.tvlUSD)).reverse();
-        const volumeHistory = pool.poolDayData.map(day => parseFloat(day.volumeUSD)).reverse();
-        const feesHistory = pool.poolDayData.map(day => parseFloat(day.feesUSD)).reverse();
+        // Prepare historical arrays, up to 90 days if available
+        const maxHistory = 90;
+        const tvlHistory = chart.tvl ? chart.tvl.slice(-maxHistory) : [];
+        const aprHistory = chart.apy ? chart.apy.slice(-maxHistory) : [];
+        const volumeHistory = chart.volume ? chart.volume.slice(-maxHistory) : [];
+        const feesHistory = chart.fees ? chart.fees.slice(-maxHistory) : [];
+        const dates = chart.tvl ? chart.tvl.slice(-maxHistory).map(e =>
+          new Date(e.date * 1000).toISOString().split('T')[0]
+        ) : [];
 
-        // Calculate APR history (fees / TVL * 365)
-        const aprHistory = pool.poolDayData.map(day => {
-          const dailyFees = parseFloat(day.feesUSD);
-          const dailyTvl = parseFloat(day.tvlUSD);
-          return dailyTvl > 0 ? (dailyFees / dailyTvl) * 365 * 100 : 0;
-        }).reverse();
+        // Current TVL/volume/APR
+        const tvl = pool.tvlUsd || (tvlHistory.length > 0 ? tvlHistory[tvlHistory.length - 1].totalLiquidityUSD : 0);
+        const volume24h = pool.volumeUsd1d || (volumeHistory.length > 0 ? volumeHistory[volumeHistory.length - 1].volume : 0);
 
-        // Calculate volatility (price change variance)
-        const volatility = calculateVariance(tvlHistory);
+        // Calculate volatility (price change variance) and health score
+        const tvlVals = tvlHistory.map(h => h.totalLiquidityUSD || h.tvl || 0);
+        const aprVals = aprHistory.map(h => h.apy || h.apr || 0);
+
+        const volatility = calculateVariance(tvlVals);
 
         const poolData = {
           tvl,
           volume24h,
-          aprHistory,
-          tvlHistory,
+          aprHistory: aprVals,
+          tvlHistory: tvlVals,
           volatility,
           liquidityDepth: tvl / 1000000
         };
@@ -158,14 +148,14 @@ async function processPoolData() {
         const healthScore = calculateHealthScore(poolData);
 
         const processedPool = {
-          pool_id: pool.id,
+          pool_id: pool.pool,
           platform: 'uniswap-v3',
-          token_pair: tokenPair,
-          token0_symbol: pool.token0.symbol,
-          token1_symbol: pool.token1.symbol,
+          token_pair: pool.symbol,
+          token0_symbol: pool.symbol.split('/')[0],
+          token1_symbol: pool.symbol.split('/')[1] || '',
           tvl: tvl,
           volume_24h: volume24h,
-          fee_tier: parseFloat(pool.feeTier) / 10000, // Convert to percentage
+          fee_tier: pool.metadata && pool.metadata.fee ? pool.metadata.fee : null,
           health_score: healthScore.totalScore,
           tvl_stability: healthScore.breakdown.tvlStability,
           apr_consistency: healthScore.breakdown.aprConsistency,
@@ -173,21 +163,17 @@ async function processPoolData() {
           il_risk_score: healthScore.breakdown.ilRisk,
           last_updated: new Date().toISOString(),
           historical_data: {
-            tvl: tvlHistory,
-            volume: volumeHistory,
-            fees: feesHistory,
-            apr: aprHistory,
-            dates: pool.poolDayData.map(day => {
-              // TheGraph returns days as unix-timestamp-in-seconds
-              const timestamp = parseInt(day.date);
-              return new Date(timestamp * 1000).toISOString().split('T')[0];
-            }).reverse()
+            tvl: tvlVals,
+            volume: volumeHistory.map(h => h.volume || 0),
+            fees: feesHistory.map(h => h.fees || 0),
+            apr: aprVals,
+            dates: dates
           }
         };
 
         processedPools.push(processedPool);
       } catch (error) {
-        console.error(`Error processing pool ${pool.id}:`, error.message);
+        console.error(`Error processing pool ${pool.pool}:`, error.message);
       }
     }
 
@@ -206,7 +192,7 @@ async function processPoolData() {
 
 app.get('/', (req, res) => {
   res.json({
-    message: '🏊‍♂️ DeFi Pool Health Analyzer API',
+    message: '🏊‍♂️ DeFi Pool Health Analyzer API (DefiLlama version)',
     status: 'running',
     endpoints: {
       health: '/api/health',
@@ -329,12 +315,6 @@ setTimeout(async () => {
 }, 5000);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 DeFi Pool Analyzer API running on port ${PORT}`);
+  console.log(`🚀 DeFi Pool Analyzer API (DefiLlama) running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
-
-
-
-
-
-
