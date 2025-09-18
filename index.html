@@ -1,4 +1,18 @@
-<!DOCTYPE html>
+.platform-badge {
+            background: #3498db;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+        
+        .search-highlight {
+            background-color: yellow;
+            font-weight: bold;
+        }<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -662,8 +676,15 @@
         }
         
         async function handleFilterChange() {
+            showStatus('Filtering pools...', 'info');
             await fetchRealPoolData();
             renderPools();
+        }
+        
+        function highlightSearchText(text, searchTerm) {
+            if (!searchTerm) return text;
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            return text.replace(regex, '<span class="search-highlight">$1</span>');
         }
         
         function handleSortChange(event) {
@@ -843,10 +864,13 @@
                             ${riskCategory.label}
                         </div>
                         <div class="pool-header-info">
-                            <div class="pool-name">${pool.token_pair}</div>
+                            <div class="pool-name">
+                                ${pool.token_pair}
+                                <span class="platform-badge" style="background: ${getPlatformColor(pool.platform)};">${getPlatformLabel(pool.platform)}</span>
+                            </div>
                             <div class="health-score ${healthClass}">
                                 ${Math.round(pool.health_score)} 
-                                <span class="tooltip" data-tooltip="Health score based on TVL stability, APR consistency, volume efficiency, and liquidity depth">ℹ️</span>
+                                <span class="tooltip" data-tooltip="Health score: TVL stability, APR risk, liquidity depth, token safety, volume patterns, protocol trust">ℹ️</span>
                             </div>
                         </div>
                         <div class="pool-stats">
@@ -1078,7 +1102,27 @@
             document.getElementById('aiInsights').innerHTML = insightsHtml;
         }
         
-        // Utility Functions
+        function getPlatformColor(platform) {
+            const colors = {
+                'uniswap-v3': '#FF007A',
+                'sushiswap': '#0E76FD', 
+                'balancer-v2': '#1E1E1E',
+                'curve': '#40E0D0',
+                'pancakeswap': '#D1884F'
+            };
+            return colors[platform] || '#666';
+        }
+        
+        function getPlatformLabel(platform) {
+            const labels = {
+                'uniswap-v3': 'UNI',
+                'sushiswap': 'SUSHI',
+                'balancer-v2': 'BAL',
+                'curve': 'CURVE',
+                'pancakeswap': 'CAKE'
+            };
+            return labels[platform] || platform.toUpperCase();
+        }
         function formatNumber(num) {
             if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
             if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
