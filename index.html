@@ -542,7 +542,7 @@
     <div class="container">
         <header class="header">
             <h1>DeFi Pool Health Analyzer</h1>
-            <p>AI-powered liquidity pool risk assessment with real-time insights</p>
+            <p>Advanced liquidity pool risk assessment with real-time insights</p>
         </header>
         
         <!-- Features Section -->
@@ -654,58 +654,8 @@
     </div>
 
     <script>
-        // Configuration - Try different Railway URLs
-        const POSSIBLE_URLS = [
-            'https://defi-pool-health.up.railway.app/api',
-            'https://defi-pool-health-production.up.railway.app/api', 
-            'https://advanced-defi-pool-risk-analyzer-api-production.up.railway.app/api'
-        ];
-        let API_BASE_URL = POSSIBLE_URLS[0];
-        
-        // Test API connectivity
-        async function testApiConnection() {
-            for (const url of POSSIBLE_URLS) {
-                try {
-                    console.log(`Testing API: ${url}`);
-                    const response = await fetch(`${url}/health`, { 
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        console.log(`✓ API working: ${url}`, data);
-                        API_BASE_URL = url;
-                        return true;
-                    } else {
-                        console.log(`✗ API failed: ${url} - Status: ${response.status}`);
-                    }
-                } catch (error) {
-                    console.log(`✗ API error: ${url}`, error.message);
-                }
-            }
-            return false;
-        }
-        
-        // Platform logos mapping
-        const platformLogos = {
-            'uniswap-v3': 'https://cryptologos.cc/logos/uniswap-uni-logo.png',
-            'sushiswap': 'https://cryptologos.cc/logos/sushiswap-sushi-logo.png', 
-            'curve': 'https://cryptologos.cc/logos/curve-dao-token-crv-logo.png',
-            'balancer-v2': 'https://cryptologos.cc/logos/balancer-bal-logo.png',
-            'pancakeswap': 'https://cryptologos.cc/logos/pancakeswap-cake-logo.png'
-        };
-        
-        const platformNames = {
-            'uniswap-v3': 'Uniswap',
-            'sushiswap': 'SushiSwap',
-            'curve': 'Curve',
-            'balancer-v2': 'Balancer',
-            'pancakeswap': 'PancakeSwap'
-        };
+        // Configuration
+        const API_BASE_URL = 'https://defi-pool-health.up.railway.app/api';
         
         // State
         let pools = [];
@@ -716,43 +666,15 @@
         // Watchlist functionality
         let watchlist = JSON.parse(localStorage.getItem('defi-watchlist') || '[]');
         
-        // Initialize app with API testing
-        document.addEventListener('DOMContentLoaded', async function() {
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing app...');
             setupEventListeners();
-            
-            // Test API connection first
-            showNotification('Testing API connection...', 'info');
-            const apiWorking = await testApiConnection();
-            
-            if (!apiWorking) {
-                showNotification('⚠️ API connection failed. The Railway app may be sleeping. Trying to wake it up...', 'error');
-                // Try to wake up the app
-                setTimeout(async () => {
-                    const secondAttempt = await testApiConnection();
-                    if (secondAttempt) {
-                        await loadPools();
-                    } else {
-                        showNotification('❌ Could not connect to API. Please check Railway deployment.', 'error');
-                        document.getElementById('poolsList').innerHTML = `
-                            <div class="loading">
-                                <h4 style="color: red;">API Connection Failed</h4>
-                                <p>The Railway app may be sleeping or there may be a CORS issue.</p>
-                                <p>Current API URLs being tested:</p>
-                                <ul style="text-align: left; margin-top: 10px;">
-                                    ${POSSIBLE_URLS.map(url => `<li><code>${url}</code></li>`).join('')}
-                                </ul>
-                                <button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">Retry</button>
-                            </div>
-                        `;
-                    }
-                }, 5000);
-                return;
-            }
-            
-            await loadPools();
+            loadPools();
         });
         
         function setupEventListeners() {
+            console.log('Setting up event listeners...');
             document.getElementById('platformFilter').addEventListener('change', filterPools);
             document.getElementById('minTvl').addEventListener('input', debounce(filterPools, 500));
             document.getElementById('riskFilter').addEventListener('change', filterPools);
@@ -772,30 +694,24 @@
         }
         
         async function loadPools() {
+            console.log('Starting to load pools...');
             try {
                 showLoading();
-                console.log(`Fetching pools from: ${API_BASE_URL}/pools`);
+                console.log('Fetching from:', API_BASE_URL + '/pools');
                 
-                const response = await fetch(`${API_BASE_URL}/pools?limit=50`, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
+                const response = await fetch(API_BASE_URL + '/pools?limit=50');
+                console.log('Response received:', response.status, response.statusText);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const data = await response.json();
-                console.log('Response data:', data);
+                console.log('Data parsed:', data);
                 
                 if (data.success && Array.isArray(data.data)) {
                     pools = data.data;
+                    console.log('Pools loaded:', pools.length);
                     renderPools();
                     if (pools.length > 0) {
                         selectPool(pools[0]);
@@ -806,22 +722,14 @@
                 }
             } catch (error) {
                 console.error('Error loading pools:', error);
-                showNotification(`Failed to load pools: ${error.message}`, 'error');
+                showNotification('Failed to load pools: ' + error.message, 'error');
                 
-                // Show detailed error message
                 document.getElementById('poolsList').innerHTML = `
                     <div class="loading">
                         <h4 style="color: red;">Failed to Load Pools</h4>
                         <p><strong>Error:</strong> ${error.message}</p>
-                        <p><strong>API URL:</strong> <code>${API_BASE_URL}</code></p>
-                        <p>This might be caused by:</p>
-                        <ul style="text-align: left; margin: 10px 0;">
-                            <li>Railway app sleeping (first request takes time)</li>
-                            <li>CORS configuration issues</li>
-                            <li>Backend deployment problems</li>
-                        </ul>
-                        <button onclick="loadPools()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">Retry Loading</button>
-                        <button onclick="testApiConnection()" style="margin: 15px 0 0 10px; padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer;">Test API</button>
+                        <p><strong>API URL:</strong> ${API_BASE_URL}</p>
+                        <button onclick="loadPools()" style="margin-top: 15px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">Retry</button>
                     </div>
                 `;
             }
