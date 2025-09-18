@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DeFi Pool Health Analyzer</title>
+    <title>DeFi Pool Health Analyzer - Enhanced</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
@@ -20,7 +20,7 @@
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
@@ -50,11 +50,11 @@
         }
         
         .controls {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-bottom: 30px;
-            flex-wrap: wrap;
-            align-items: center;
+            align-items: end;
         }
         
         .control-group {
@@ -70,7 +70,7 @@
         }
         
         select, input, button {
-            padding: 10px 15px;
+            padding: 12px 15px;
             border: 2px solid #e1e5e9;
             border-radius: 10px;
             font-size: 14px;
@@ -98,84 +98,26 @@
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
         
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 30px;
-            margin-bottom: 30px;
+        .search-container {
+            position: relative;
         }
         
-        .pool-list {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 20px;
-            max-height: 600px;
-            overflow-y: auto;
+        .search-input {
+            width: 100%;
+            padding-left: 40px;
         }
         
-        .pool-item {
-            background: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-left: 4px solid #667eea;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        
-        .pool-item:hover {
-            transform: translateX(5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .pool-item.selected {
-            border-left-color: #764ba2;
-            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
-        }
-        
-        .pool-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .pool-name {
-            font-weight: 700;
-            font-size: 1.1em;
-            color: #333;
-        }
-        
-        .health-score {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 0.9em;
-        }
-        
-        .health-excellent { background: #d4edda; color: #155724; }
-        .health-good { background: #d1ecf1; color: #0c5460; }
-        .health-fair { background: #fff3cd; color: #856404; }
-        .health-poor { background: #f8d7da; color: #721c24; }
-        
-        .pool-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            font-size: 0.9em;
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
             color: #666;
-        }
-        
-        .chart-container {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
         }
         
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -187,6 +129,7 @@
             text-align: center;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
             transition: transform 0.3s ease;
+            border-left: 4px solid #667eea;
         }
         
         .metric-card:hover {
@@ -211,54 +154,232 @@
             letter-spacing: 0.5px;
         }
         
-        .loading {
+        .risk-distribution {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .risk-item {
             text-align: center;
-            padding: 40px;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .risk-conservative { background: #d4edda; color: #155724; }
+        .risk-moderate { background: #fff3cd; color: #856404; }
+        .risk-aggressive { background: #f8d7da; color: #721c24; }
+        .risk-speculative { background: #f5c6cb; color: #721c24; }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .pool-list {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+        
+        .pool-header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .sort-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .sort-button {
+            padding: 8px 12px;
+            background: white;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .sort-button:hover, .sort-button.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .pool-item {
+            background: white;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .pool-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .pool-item.selected {
+            border-left-color: #764ba2;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        }
+        
+        .pool-header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .pool-name {
+            font-weight: 700;
+            font-size: 1.2em;
+            color: #333;
+        }
+        
+        .health-score {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .health-excellent { background: #d4edda; color: #155724; }
+        .health-good { background: #fff3cd; color: #856404; }
+        .health-fair { background: #f8d7da; color: #721c24; }
+        .health-poor { background: #f5c6cb; color: #721c24; }
+        
+        .pool-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            font-size: 0.9em;
             color: #666;
         }
         
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+        .pool-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .pool-stat strong {
+            color: #333;
+        }
+        
+        .risk-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .period-button {
+            padding: 8px 12px;
+            background: white;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .period-button:hover, .period-button.active {
+            background: #667eea;
+            color: white;
         }
         
         .ai-insights {
             background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
             border-radius: 15px;
             padding: 25px;
-            margin-top: 20px;
+            margin-top: 30px;
             border: 2px solid rgba(102, 126, 234, 0.2);
         }
         
         .ai-insights h3 {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             color: #333;
             display: flex;
             align-items: center;
             gap: 10px;
+            font-size: 1.3em;
         }
         
-        .ai-insights ul {
-            list-style: none;
-            padding: 0;
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
         }
         
-        .ai-insights li {
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+        .insight-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .insight-card.warning {
+            border-left-color: #e67e22;
+        }
+        
+        .insight-card.positive {
+            border-left-color: #27ae60;
+        }
+        
+        .insight-title {
+            font-weight: 600;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
         
         .insight-icon {
@@ -271,6 +392,27 @@
             font-weight: bold;
             color: white;
             font-size: 0.8em;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         .error-message {
@@ -291,22 +433,51 @@
             border: 1px solid #c3e6cb;
         }
         
-        @media (max-width: 768px) {
+        .tooltip {
+            position: relative;
+            cursor: help;
+        }
+        
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+        
+        @media (max-width: 1024px) {
             .dashboard {
                 grid-template-columns: 1fr;
             }
             
+            .controls {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+        
+        @media (max-width: 768px) {
             .metrics-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
             }
             
             .controls {
-                flex-direction: column;
-                align-items: stretch;
+                grid-template-columns: 1fr;
             }
             
             .header h1 {
                 font-size: 2em;
+            }
+            
+            .insights-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -314,8 +485,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏊‍♂️ DeFi Pool Health Analyzer</h1>
-            <p>AI-powered liquidity pool health assessment and risk analysis</p>
+            <h1>DeFi Pool Health Analyzer</h1>
+            <p>AI-powered liquidity pool health assessment with enhanced risk analysis</p>
         </div>
         
         <div class="controls">
@@ -326,27 +497,35 @@
                     <option value="uniswap-v3">Uniswap V3</option>
                     <option value="sushiswap">SushiSwap</option>
                     <option value="balancer">Balancer</option>
-                    <option value="curve">Curve</option>
                 </select>
             </div>
             
             <div class="control-group">
                 <label>Min TVL</label>
-                <input type="number" id="minTvl" placeholder="Min TVL (USD)" value="100000">
+                <input type="number" id="minTvl" placeholder="Min TVL (USD)" value="10000">
             </div>
             
             <div class="control-group">
-                <label>Time Period</label>
-                <select id="timePeriod">
-                    <option value="7d">Last 7 Days</option>
-                    <option value="30d" selected>Last 30 Days</option>
-                    <option value="90d">Last 90 Days</option>
-                    <option value="1y">Last Year</option>
+                <label>Risk Category</label>
+                <select id="riskFilter">
+                    <option value="all">All Risk Levels</option>
+                    <option value="conservative">Conservative (80+)</option>
+                    <option value="moderate">Moderate (60-79)</option>
+                    <option value="aggressive">Aggressive (40-59)</option>
+                    <option value="speculative">Speculative (<40)</option>
                 </select>
             </div>
             
-            <button onclick="refreshData()">🔄 Refresh Data</button>
-            <button onclick="generateReport()">📊 Generate Report</button>
+            <div class="control-group">
+                <label>Search Pools</label>
+                <div class="search-container">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search tokens...">
+                    <span class="search-icon">🔍</span>
+                </div>
+            </div>
+            
+            <button onclick="refreshData()">Refresh Data</button>
+            <button onclick="exportData()">Export Report</button>
         </div>
         
         <div class="metrics-grid">
@@ -355,7 +534,7 @@
                 <div class="metric-value" id="totalPools">Loading...</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Average Health Score</div>
+                <div class="metric-label tooltip" data-tooltip="Average health score across all pools">Average Health Score</div>
                 <div class="metric-value" id="avgHealthScore">Loading...</div>
             </div>
             <div class="metric-card">
@@ -363,14 +542,30 @@
                 <div class="metric-value" id="totalTvl">Loading...</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">High Risk Pools</div>
-                <div class="metric-value" id="highRiskPools" style="color: #e74c3c;">Loading...</div>
+                <div class="metric-label">24h Volume</div>
+                <div class="metric-value" id="totalVolume">Loading...</div>
+            </div>
+            <div class="metric-card" style="grid-column: span 2;">
+                <div class="metric-label">Risk Distribution</div>
+                <div class="risk-distribution" id="riskDistribution">
+                    <div class="risk-item risk-conservative">Conservative: <span id="conservativeCount">0</span></div>
+                    <div class="risk-item risk-moderate">Moderate: <span id="moderateCount">0</span></div>
+                    <div class="risk-item risk-aggressive">Aggressive: <span id="aggressiveCount">0</span></div>
+                    <div class="risk-item risk-speculative">Speculative: <span id="speculativeCount">0</span></div>
+                </div>
             </div>
         </div>
         
         <div class="dashboard">
             <div class="pool-list">
-                <h3 style="margin-bottom: 20px; color: #333;">Liquidity Pools</h3>
+                <div class="pool-header-controls">
+                    <h3 style="color: #333;">Liquidity Pools</h3>
+                    <div class="sort-controls">
+                        <button class="sort-button active" data-sort="health_score">Health</button>
+                        <button class="sort-button" data-sort="tvl">TVL</button>
+                        <button class="sort-button" data-sort="volume">Volume</button>
+                    </div>
+                </div>
                 <div id="poolsList">
                     <div class="loading">
                         <div class="spinner"></div>
@@ -380,52 +575,99 @@
             </div>
             
             <div class="chart-container">
-                <h3 style="margin-bottom: 20px; color: #333;">Pool Performance Analysis</h3>
+                <div class="chart-header">
+                    <div class="chart-title">Pool Performance Analysis</div>
+                    <div class="chart-controls">
+                        <button class="period-button" data-period="7">7D</button>
+                        <button class="period-button active" data-period="30">30D</button>
+                        <button class="period-button" data-period="90">90D</button>
+                        <button class="period-button" data-period="365">1Y</button>
+                    </div>
+                </div>
                 <canvas id="performanceChart" width="400" height="200"></canvas>
             </div>
         </div>
         
         <div class="ai-insights">
-            <h3>🤖 AI Insights & Recommendations</h3>
-            <div id="aiInsights">Loading AI analysis...</div>
+            <h3>AI Health Analysis & Recommendations</h3>
+            <div class="insights-grid" id="aiInsights">
+                <div class="loading">Loading AI analysis...</div>
+            </div>
         </div>
         
         <div id="statusMessage"></div>
     </div>
 
     <script>
-        // --- Add these two functions at the very top of your <script> block ---
-        function getQueryParam(name) {
-            const url = new URL(window.location);
-            return url.searchParams.get(name);
-        }
-        function setQueryParam(name, value) {
-            const url = new URL(window.location);
-            url.searchParams.set(name, value);
-            window.history.replaceState({}, '', url);
-        }
-        // --- End helpers ---
-
-        // Your Railway API URL
+        // Configuration
         const API_BASE_URL = 'https://defi-pool-health.up.railway.app/api';
         
+        // State
         let poolsData = [];
         let selectedPool = null;
         let performanceChart = null;
         let isLoading = false;
+        let currentSort = 'health_score';
+        let currentPeriod = 30;
         
-        // Initialize the application
+        // Initialize application
         async function initApp() {
-            // Set dropdown to URL value if present, else default to "30d"
-            const periodFromUrl = getQueryParam('period') || '30d';
-            document.getElementById('timePeriod').value = periodFromUrl;
-
+            setupEventListeners();
             showStatus('Initializing DeFi Pool Analyzer...', 'info');
             await fetchRealPoolData();
+            await updateMetrics();
             renderPools();
-            updateMetrics();
             renderChart();
             generateAIInsights();
+        }
+        
+        function setupEventListeners() {
+            // Filter controls
+            document.getElementById('platformFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('minTvl').addEventListener('input', debounce(handleFilterChange, 500));
+            document.getElementById('riskFilter').addEventListener('change', handleFilterChange);
+            document.getElementById('searchInput').addEventListener('input', debounce(handleFilterChange, 300));
+            
+            // Sort buttons
+            document.querySelectorAll('.sort-button').forEach(btn => {
+                btn.addEventListener('click', handleSortChange);
+            });
+            
+            // Period buttons
+            document.querySelectorAll('.period-button').forEach(btn => {
+                btn.addEventListener('click', handlePeriodChange);
+            });
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        async function handleFilterChange() {
+            await fetchRealPoolData();
+            renderPools();
+        }
+        
+        function handleSortChange(event) {
+            document.querySelectorAll('.sort-button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            currentSort = event.target.getAttribute('data-sort');
+            renderPools();
+        }
+        
+        function handlePeriodChange(event) {
+            document.querySelectorAll('.period-button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            currentPeriod = parseInt(event.target.getAttribute('data-period'));
+            renderChart();
         }
         
         function showStatus(message, type = 'info') {
@@ -433,26 +675,37 @@
             const className = type === 'error' ? 'error-message' : 'success-message';
             statusDiv.innerHTML = `<div class="${className}">${message}</div>`;
             
-            // Auto-hide after 5 seconds
             setTimeout(() => {
                 statusDiv.innerHTML = '';
             }, 5000);
         }
         
-        // Fetch real pool data from API
+        // API Functions
         async function fetchRealPoolData() {
             try {
                 isLoading = true;
-                console.log('Fetching real pool data...');
+                console.log('Fetching pool data...');
+                
+                const params = new URLSearchParams();
                 
                 const platformFilter = document.getElementById('platformFilter').value;
+                if (platformFilter !== 'all') params.append('platform', platformFilter);
+                
                 const minTvl = document.getElementById('minTvl').value;
+                if (minTvl) params.append('minTvl', minTvl);
                 
-                let url = `${API_BASE_URL}/pools?limit=50`;
-                if (platformFilter !== 'all') url += `&platform=${platformFilter}`;
-                if (minTvl) url += `&minTvl=${minTvl}`;
+                const riskFilter = document.getElementById('riskFilter').value;
+                if (riskFilter !== 'all') params.append('riskCategory', riskFilter);
                 
+                const searchTerm = document.getElementById('searchInput').value;
+                if (searchTerm) params.append('search', searchTerm);
+                
+                params.append('sortBy', currentSort);
+                params.append('limit', '100');
+                
+                const url = `${API_BASE_URL}/pools?${params.toString()}`;
                 const response = await fetch(url);
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -461,40 +714,47 @@
                 
                 if (result.success) {
                     poolsData = result.data.map(pool => ({
-                        id: pool.pool_id,
-                        platform: pool.platform,
-                        tokenPair: pool.token_pair,
-                        tvl: pool.tvl,
-                        volume24h: pool.volume_24h,
-                        apr: calculateAPR(pool.volume_24h, pool.tvl, pool.fee_tier),
-                        fees24h: pool.volume_24h * (pool.fee_tier || 0.003),
-                        healthScore: pool.health_score,
-                        tvlStability: pool.tvl_stability / 25,
-                        aprStability: pool.apr_consistency / 25,
-                        volumeToTvlRatio: pool.volume_24h / pool.tvl,
-                        impermanentLossRisk: 1 - (pool.il_risk_score / 25),
+                        ...pool,
                         historical: parseHistoricalData(pool.historical_data)
                     }));
                     
-                    showStatus(`✅ Loaded ${poolsData.length} pools successfully!`, 'success');
-                    console.log(`Loaded ${poolsData.length} real pools`);
+                    showStatus(`Loaded ${poolsData.length} pools successfully!`, 'success');
+                    console.log(`Loaded ${poolsData.length} pools`);
                 } else {
                     throw new Error(result.error || 'Failed to fetch pool data');
                 }
             } catch (error) {
-                console.error('Error fetching real data:', error);
-                showStatus(`❌ API Error: ${error.message}. Using demo data instead.`, 'error');
-                // Fallback to mock data if API fails
-                await generateMockData();
+                console.error('Error fetching data:', error);
+                showStatus(`API Error: ${error.message}`, 'error');
             } finally {
                 isLoading = false;
             }
         }
         
-        function calculateAPR(volume24h, tvl, feeTier) {
-            if (!tvl || tvl === 0) return 0;
-            const dailyFees = volume24h * (feeTier || 0.003);
-            return (dailyFees / tvl) * 365 * 100;
+        async function updateMetrics() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/metrics`);
+                if (!response.ok) throw new Error('Failed to fetch metrics');
+                
+                const result = await response.json();
+                if (result.success) {
+                    const metrics = result.data;
+                    
+                    document.getElementById('totalPools').textContent = metrics.totalPools || 0;
+                    document.getElementById('avgHealthScore').textContent = Math.round(metrics.averageHealthScore || 0);
+                    document.getElementById('totalTvl').textContent = '$' + formatNumber(metrics.totalTvl || 0);
+                    document.getElementById('totalVolume').textContent = '$' + formatNumber(metrics.totalVolume24h || 0);
+                    
+                    // Update risk distribution
+                    const dist = metrics.riskDistribution || {};
+                    document.getElementById('conservativeCount').textContent = dist.conservative || 0;
+                    document.getElementById('moderateCount').textContent = dist.moderate || 0;
+                    document.getElementById('aggressiveCount').textContent = dist.aggressive || 0;
+                    document.getElementById('speculativeCount').textContent = dist.speculative || 0;
+                }
+            } catch (error) {
+                console.error('Error updating metrics:', error);
+            }
         }
         
         function parseHistoricalData(historicalData) {
@@ -508,13 +768,14 @@
                 tvl: tvl[index] || 0,
                 apr: apr[index] || 0,
                 volume: volume[index] || 0,
+                fees: fees[index] || 0,
                 healthScore: 75 + (Math.random() - 0.5) * 20
             }));
         }
         
         function generateMockHistoricalData() {
             const data = [];
-            const days = 30;
+            const days = 365;
             let baseTvl = Math.random() * 10000000 + 1000000;
             let baseApr = Math.random() * 30 + 10;
             
@@ -536,130 +797,48 @@
             return data;
         }
         
-        async function fetchMetrics() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/metrics`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                if (result.success) {
-                    return result.data;
-                }
-                throw new Error(result.error || 'Failed to fetch metrics');
-            } catch (error) {
-                console.error('Error fetching metrics:', error);
-                return calculateLocalMetrics();
-            }
-        }
-        
-        function calculateLocalMetrics() {
-            const platformFilter = document.getElementById('platformFilter').value;
-            const minTvl = parseFloat(document.getElementById('minTvl').value) || 0;
-            
-            let filteredPools = poolsData.filter(pool => {
-                if (platformFilter !== 'all' && pool.platform !== platformFilter) return false;
-                if (pool.tvl < minTvl) return false;
-                return true;
-            });
-            
-            return {
-                totalPools: filteredPools.length,
-                averageHealthScore: filteredPools.length > 0 ? 
-                    filteredPools.reduce((sum, p) => sum + p.healthScore, 0) / filteredPools.length : 0,
-                totalTvl: filteredPools.reduce((sum, p) => sum + p.tvl, 0),
-                highRiskPools: filteredPools.filter(p => p.healthScore < 50).length,
-                totalVolume24h: filteredPools.reduce((sum, p) => sum + p.volume24h, 0)
-            };
-        }
-        
-        // Generate realistic mock data (fallback)
-        async function generateMockData() {
-            const platforms = ['uniswap-v3', 'sushiswap', 'balancer', 'curve'];
-            const tokens = [
-                'ETH/USDT', 'BTC/ETH', 'USDC/DAI', 'WETH/USDC', 
-                'LINK/ETH', 'UNI/ETH', 'AAVE/ETH', 'SUSHI/ETH',
-                'CRV/ETH', 'BAL/ETH', 'COMP/ETH', 'MKR/ETH'
-            ];
-            
-            poolsData = [];
-            
-            for (let i = 0; i < 24; i++) {
-                const platform = platforms[Math.floor(Math.random() * platforms.length)];
-                const tokenPair = tokens[Math.floor(Math.random() * tokens.length)];
-                const tvl = Math.random() * 50000000 + 100000;
-                const volume24h = Math.random() * tvl * 0.5;
-                const apr = Math.random() * 50 + 5;
-                const fees24h = volume24h * 0.003;
-                
-                const tvlStability = Math.random() * 0.3 + 0.7;
-                const aprStability = Math.random() * 0.4 + 0.6;
-                const volumeToTvlRatio = volume24h / tvl;
-                const impermanentLossRisk = Math.random() * 0.5 + 0.1;
-                
-                let healthScore = 0;
-                healthScore += tvlStability * 25;
-                healthScore += aprStability * 25;
-                healthScore += Math.min(volumeToTvlRatio * 100, 25);
-                healthScore += (1 - impermanentLossRisk) * 25;
-                
-                healthScore = Math.min(Math.max(healthScore, 0), 100);
-                
-                const historicalData = generateMockHistoricalData();
-                
-                poolsData.push({
-                    id: `${platform}-${tokenPair.replace('/', '-')}-${i}`,
-                    platform: platform,
-                    tokenPair: tokenPair,
-                    tvl: tvl,
-                    volume24h: volume24h,
-                    apr: apr,
-                    fees24h: fees24h,
-                    healthScore: healthScore,
-                    tvlStability: tvlStability,
-                    aprStability: aprStability,
-                    volumeToTvlRatio: volumeToTvlRatio,
-                    impermanentLossRisk: impermanentLossRisk,
-                    historical: historicalData
-                });
-            }
-            
-            poolsData.sort((a, b) => b.healthScore - a.healthScore);
-        }
-        
         function renderPools() {
             const container = document.getElementById('poolsList');
-            const platformFilter = document.getElementById('platformFilter').value;
-            const minTvl = parseFloat(document.getElementById('minTvl').value) || 0;
             
-            let filteredPools = poolsData.filter(pool => {
-                if (platformFilter !== 'all' && pool.platform !== platformFilter) return false;
-                if (pool.tvl < minTvl) return false;
-                return true;
-            });
-            
-            if (filteredPools.length === 0) {
+            if (poolsData.length === 0) {
                 container.innerHTML = '<div class="loading"><p>No pools match your criteria</p></div>';
                 return;
             }
             
-            container.innerHTML = filteredPools.map(pool => {
-                const healthClass = getHealthClass(pool.healthScore);
-                const healthLabel = getHealthLabel(pool.healthScore);
-                const isSelected = selectedPool && selectedPool.id === pool.id;
+            container.innerHTML = poolsData.map(pool => {
+                const healthClass = getHealthClass(pool.health_score);
+                const riskCategory = pool.risk_category || { label: 'Unknown', color: '#666' };
+                const isSelected = selectedPool && selectedPool.pool_id === pool.pool_id;
                 
                 return `
-                    <div class="pool-item ${isSelected ? 'selected' : ''}" onclick="selectPool('${pool.id}')">
-                        <div class="pool-header">
-                            <div class="pool-name">${pool.tokenPair}</div>
-                            <div class="health-score ${healthClass}">${Math.round(pool.healthScore)} ${healthLabel}</div>
+                    <div class="pool-item ${isSelected ? 'selected' : ''}" onclick="selectPool('${pool.pool_id}')">
+                        <div class="risk-badge" style="background-color: ${riskCategory.color}; color: white;">
+                            ${riskCategory.label}
+                        </div>
+                        <div class="pool-header-info">
+                            <div class="pool-name">${pool.token_pair}</div>
+                            <div class="health-score ${healthClass}">
+                                ${Math.round(pool.health_score)} 
+                                <span class="tooltip" data-tooltip="Health score based on TVL stability, APR consistency, volume efficiency, and liquidity depth">ℹ️</span>
+                            </div>
                         </div>
                         <div class="pool-stats">
-                            <div>TVL: $${formatNumber(pool.tvl)}</div>
-                            <div>24h Vol: $${formatNumber(pool.volume24h)}</div>
-                            <div>APR: ${pool.apr.toFixed(2)}%</div>
-                            <div>Platform: ${pool.platform.charAt(0).toUpperCase() + pool.platform.slice(1)}</div>
+                            <div class="pool-stat">
+                                <span>TVL:</span>
+                                <strong>$${formatNumber(pool.tvl)}</strong>
+                            </div>
+                            <div class="pool-stat">
+                                <span>24h Volume:</span>
+                                <strong>$${formatNumber(pool.volume_24h)}</strong>
+                            </div>
+                            <div class="pool-stat">
+                                <span>APR:</span>
+                                <strong>${pool.avg_apr ? pool.avg_apr.toFixed(2) : 'N/A'}%</strong>
+                            </div>
+                            <div class="pool-stat">
+                                <span>Data Points:</span>
+                                <strong>${pool.data_points || 'N/A'} days</strong>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -667,7 +846,7 @@
         }
         
         function selectPool(poolId) {
-            selectedPool = poolsData.find(p => p.id === poolId);
+            selectedPool = poolsData.find(p => p.pool_id === poolId);
             renderPools();
             renderChart();
             generateAIInsights();
@@ -683,13 +862,8 @@
             const pool = selectedPool || poolsData[0];
             if (!pool || !pool.historical) return;
             
-            // Get selected time period
-            const timePeriod = document.getElementById('timePeriod').value;
-            const daysMap = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 };
-            const daysToShow = daysMap[timePeriod] || 30;
-            
-            // Filter historical data based on selected period
-            const historicalData = pool.historical.slice(-daysToShow);
+            // Filter data based on selected period
+            const historicalData = pool.historical.slice(-currentPeriod);
             
             const labels = historicalData.map(h => h.date);
             const tvlData = historicalData.map(h => h.tvl / 1000000);
@@ -732,7 +906,11 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `${pool.tokenPair} - ${timePeriod.toUpperCase()} Performance (${historicalData.length} days)`
+                            text: `${pool.token_pair} - ${currentPeriod}D Performance (${historicalData.length} days)`
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
                         }
                     },
                     scales: {
@@ -768,85 +946,88 @@
             });
         }
         
-        async function updateMetrics() {
-            try {
-                const metrics = await fetchMetrics();
-                
-                document.getElementById('totalPools').textContent = metrics.totalPools || 0;
-                document.getElementById('avgHealthScore').textContent = Math.round(metrics.averageHealthScore || 0);
-                document.getElementById('totalTvl').textContent = '$' + formatNumber(metrics.totalTvl || 0);
-                document.getElementById('highRiskPools').textContent = metrics.highRiskPools || 0;
-            } catch (error) {
-                console.error('Error updating metrics:', error);
-            }
-        }
-        
         function generateAIInsights() {
             const pool = selectedPool || poolsData[0];
             if (!pool) {
-                document.getElementById('aiInsights').innerHTML = '<p>No pool selected for analysis</p>';
+                document.getElementById('aiInsights').innerHTML = '<div class="loading">No pool selected for analysis</div>';
                 return;
             }
             
             const insights = [];
             
-            if (pool.tvlStability > 0.8) {
+            // TVL Analysis
+            if (pool.tvl_stability > 20) {
                 insights.push({
                     type: 'positive',
-                    message: 'Excellent TVL stability indicates strong investor confidence'
+                    title: 'TVL Stability',
+                    message: `Excellent TVL stability (${pool.tvl_stability.toFixed(1)}/25) indicates strong investor confidence and consistent liquidity.`
                 });
-            } else if (pool.tvlStability < 0.6) {
+            } else if (pool.tvl_stability < 10) {
                 insights.push({
                     type: 'warning',
-                    message: 'High TVL volatility suggests potential liquidity risks'
+                    title: 'TVL Volatility',
+                    message: `High TVL volatility (${pool.tvl_stability.toFixed(1)}/25) suggests potential liquidity risks and capital flight risk.`
                 });
             }
             
-            if (pool.apr > 30) {
+            // APR Analysis
+            if (pool.apr_consistency > 15) {
+                insights.push({
+                    type: 'positive',
+                    title: 'APR Consistency',
+                    message: `Strong APR consistency (${pool.apr_consistency.toFixed(1)}/25) shows reliable yield generation over time.`
+                });
+            } else if (pool.apr_consistency < 8) {
                 insights.push({
                     type: 'warning',
-                    message: 'High APR may indicate elevated risk or temporary incentives'
-                });
-            } else if (pool.apr < 5) {
-                insights.push({
-                    type: 'neutral',
-                    message: 'Low APR suggests stable but potentially less attractive yields'
+                    title: 'APR Volatility',
+                    message: `Inconsistent APR (${pool.apr_consistency.toFixed(1)}/25) indicates unpredictable returns and potential market instability.`
                 });
             }
             
-            if (pool.volumeToTvlRatio > 0.3) {
+            // Volume Analysis  
+            if (pool.volume_efficiency > 15) {
                 insights.push({
                     type: 'positive',
-                    message: 'High trading activity relative to TVL indicates good liquidity utilization'
+                    title: 'Volume Efficiency',
+                    message: `High volume efficiency (${pool.volume_efficiency.toFixed(1)}/25) shows excellent capital utilization and trading activity.`
                 });
-            } else if (pool.volumeToTvlRatio < 0.05) {
+            } else if (pool.volume_efficiency < 5) {
                 insights.push({
                     type: 'warning',
-                    message: 'Low trading volume may result in poor capital efficiency'
+                    title: 'Low Volume Activity',
+                    message: `Low volume efficiency (${pool.volume_efficiency.toFixed(1)}/25) may result in poor capital efficiency and higher slippage.`
                 });
             }
             
-            if (pool.impermanentLossRisk > 0.4) {
-                insights.push({
-                    type: 'warning',
-                    message: 'High impermanent loss risk due to volatile token correlation'
-                });
-            } else if (pool.impermanentLossRisk < 0.2) {
+            // Liquidity Analysis
+            if (pool.liquidity_score > 15) {
                 insights.push({
                     type: 'positive',
-                    message: 'Low impermanent loss risk makes this suitable for conservative LPs'
+                    title: 'Deep Liquidity',
+                    message: `Strong liquidity depth (${pool.liquidity_score.toFixed(1)}/25) provides better trade execution and lower slippage.`
+                });
+            } else if (pool.liquidity_score < 8) {
+                insights.push({
+                    type: 'warning',
+                    title: 'Shallow Liquidity',
+                    message: `Limited liquidity depth (${pool.liquidity_score.toFixed(1)}/25) may cause significant slippage on larger trades.`
                 });
             }
             
-            if (pool.healthScore > 80) {
+            // Overall Assessment
+            const riskCategory = pool.risk_category || { label: 'Unknown' };
+            if (pool.health_score > 80) {
                 insights.push({
                     type: 'positive',
-                    message: 'Overall excellent health score - recommended for most LP strategies'
+                    title: 'Investment Recommendation',
+                    message: `Excellent health score (${pool.health_score.toFixed(1)}/100) - ${riskCategory.label} risk profile. Suitable for conservative LP strategies.`
                 });
-            } else if (pool.healthScore < 50) {
+            } else if (pool.health_score < 40) {
                 insights.push({
                     type: 'warning',
-                    message: 'Below-average health score - consider risk management strategies'
+                    title: 'High Risk Investment',
+                    message: `Low health score (${pool.health_score.toFixed(1)}/100) - ${riskCategory.label} risk profile. Consider advanced risk management strategies.`
                 });
             }
             
@@ -857,16 +1038,20 @@
                             insight.type === 'warning' ? '⚠' : 'i';
                 
                 return `
-                    <li>
-                        <div class="insight-icon" style="background-color: ${iconColor}">${icon}</div>
-                        ${insight.message}
-                    </li>
+                    <div class="insight-card ${insight.type}">
+                        <div class="insight-title">
+                            <div class="insight-icon" style="background-color: ${iconColor}">${icon}</div>
+                            ${insight.title}
+                        </div>
+                        <div>${insight.message}</div>
+                    </div>
                 `;
             }).join('');
             
-            document.getElementById('aiInsights').innerHTML = `<ul>${insightsHtml}</ul>`;
+            document.getElementById('aiInsights').innerHTML = insightsHtml;
         }
         
+        // Utility Functions
         function formatNumber(num) {
             if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
             if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
@@ -876,21 +1061,14 @@
         
         function getHealthClass(score) {
             if (score >= 80) return 'health-excellent';
-            if (score >= 65) return 'health-good';
-            if (score >= 50) return 'health-fair';
+            if (score >= 60) return 'health-good';
+            if (score >= 40) return 'health-fair';
             return 'health-poor';
-        }
-        
-        function getHealthLabel(score) {
-            if (score >= 80) return 'Excellent';
-            if (score >= 65) return 'Good';
-            if (score >= 50) return 'Fair';
-            return 'Poor';
         }
         
         async function refreshData() {
             try {
-                showStatus('🔄 Refreshing pool data...', 'info');
+                showStatus('Refreshing pool data...', 'info');
                 
                 const response = await fetch(`${API_BASE_URL}/refresh`, {
                     method: 'POST',
@@ -900,11 +1078,13 @@
                 });
                 
                 if (response.ok) {
-                    showStatus('✅ Server refresh triggered! Updating data...', 'success');
+                    const result = await response.json();
+                    showStatus(`Server refresh triggered! Updated ${result.totalCached} pools.`, 'success');
+                    
                     setTimeout(async () => {
                         await fetchRealPoolData();
+                        await updateMetrics();
                         renderPools();
-                        updateMetrics();
                         renderChart();
                         generateAIInsights();
                     }, 3000);
@@ -913,93 +1093,60 @@
                 }
             } catch (error) {
                 console.error('Error refreshing data:', error);
-                showStatus(`❌ Refresh failed: ${error.message}`, 'error');
-                await generateMockData();
-                renderPools();
-                updateMetrics();
-                renderChart();
-                generateAIInsights();
+                showStatus(`Refresh failed: ${error.message}`, 'error');
             }
         }
         
-        function generateReport() {
-            const reportData = {
-                timestamp: new Date().toISOString(),
-                totalPools: poolsData.length,
-                averageHealthScore: poolsData.reduce((sum, p) => sum + p.healthScore, 0) / poolsData.length,
-                topPools: poolsData.slice(0, 5).map(p => ({
-                    pair: p.tokenPair,
-                    platform: p.platform,
-                    healthScore: Math.round(p.healthScore),
-                    tvl: p.tvl,
-                    apr: p.apr.toFixed(2)
-                }))
-            };
-            
-            console.log('Generated Report:', reportData);
-            showStatus('📊 Report generated! Check console for detailed data.', 'success');
-        }
-        
-        // Event listeners
-        document.getElementById('platformFilter').addEventListener('change', async () => {
-            showStatus('🔄 Applying filters...', 'info');
-            await fetchRealPoolData();
-            renderPools();
-            updateMetrics();
-        });
-        
-        document.getElementById('minTvl').addEventListener('input', async () => {
-            showStatus('🔄 Applying filters...', 'info');
-            await fetchRealPoolData();
-            renderPools();
-            updateMetrics();
-        });
-        
-        document.getElementById('timePeriod').addEventListener('change', () => {
-            const period = document.getElementById('timePeriod').value;
-            setQueryParam('period', period); // <-- update the URL
-            console.log('Time period changed to:', period);
-            
-            // Update chart data based on selected period
-            if (selectedPool) {
-                updateChartForPeriod(selectedPool, period);
-            } else {
-                renderChart();
-            }
-        });
-        
-        function updateChartForPeriod(pool, period) {
-            const days = {
-                '7d': 7,
-                '30d': 30,
-                '90d': 90,
-                '1y': 365
-            };
-            
-            const daysToShow = days[period] || 30;
-            const filteredData = pool.historical.slice(-daysToShow);
-            
-            if (performanceChart) {
-                performanceChart.data.labels = filteredData.map(h => h.date);
-                performanceChart.data.datasets[0].data = filteredData.map(h => h.tvl / 1000000);
-                performanceChart.data.datasets[1].data = filteredData.map(h => h.apr);
-                performanceChart.data.datasets[2].data = filteredData.map(h => h.healthScore);
+        function exportData() {
+            try {
+                const reportData = {
+                    timestamp: new Date().toISOString(),
+                    totalPools: poolsData.length,
+                    filters: {
+                        platform: document.getElementById('platformFilter').value,
+                        minTvl: document.getElementById('minTvl').value,
+                        riskCategory: document.getElementById('riskFilter').value,
+                        search: document.getElementById('searchInput').value
+                    },
+                    topPools: poolsData.slice(0, 10).map(p => ({
+                        pair: p.token_pair,
+                        platform: p.platform,
+                        healthScore: p.health_score,
+                        tvl: p.tvl,
+                        volume24h: p.volume_24h,
+                        riskCategory: p.risk_category?.label || 'Unknown',
+                        avgApr: p.avg_apr
+                    })),
+                    summary: {
+                        avgHealthScore: poolsData.reduce((sum, p) => sum + p.health_score, 0) / poolsData.length,
+                        totalTvl: poolsData.reduce((sum, p) => sum + p.tvl, 0),
+                        totalVolume: poolsData.reduce((sum, p) => sum + p.volume_24h, 0)
+                    }
+                };
                 
-                performanceChart.options.plugins.title.text = `${pool.tokenPair} - ${period.toUpperCase()} Performance`;
-                performanceChart.update();
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", `defi-pools-report-${new Date().toISOString().split('T')[0]}.json`);
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+                
+                showStatus('Report exported successfully!', 'success');
+            } catch (error) {
+                console.error('Export error:', error);
+                showStatus('Export failed: ' + error.message, 'error');
             }
         }
         
-        // Initialize the app when page loads
+        // Initialize the application when DOM is loaded
         document.addEventListener('DOMContentLoaded', initApp);
         
-        // Auto-refresh data every 5 minutes
+        // Auto-refresh every 10 minutes
         setInterval(async () => {
-            console.log('Auto-refreshing data...');
-            await fetchRealPoolData();
-            renderPools();
-            updateMetrics();
-        }, 300000); // 5 minutes
+            console.log('Auto-refreshing metrics...');
+            await updateMetrics();
+        }, 600000);
     </script>
 </body>
 </html>
