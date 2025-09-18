@@ -454,7 +454,20 @@
             border-radius: 6px;
             font-size: 0.8em;
             white-space: nowrap;
-            z-index: 1000;
+            z-index: 9999; /* High z-index to appear above charts */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            pointer-events: none;
+        }
+        
+        .tooltip:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 115%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #333;
+            z-index: 9999;
         }
         
         @media (max-width: 1024px) {
