@@ -16,39 +16,94 @@ const NEWS_CACHE_FILE = './news_cache.json';
 app.use(cors());
 app.use(express.json());
 
-// Enhanced Health scoring algorithm with additional factors
+// Enhanced Health scoring algorithm with realistic risk assessment
 function calculateHealthScore(poolData) {
-  const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore } = poolData;
+  const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore, tokenPair } = poolData;
   
-  // Core metrics (80 points)
+  // 1. TVL Stability (25 points) - unchanged, this is good
   const tvlVariance = calculateVariance(tvlHistory);
-  const tvlStability = Math.max(0, Math.min(20, 20 * Math.exp(-tvlVariance * 2)));
+  const tvlStability = Math.max(0, Math.min(25, 25 * Math.exp(-tvlVariance * 2)));
   
+  // 2. APR Risk Assessment (25 points) - FIXED: Lower APR = higher score
+  const avgApr = aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0;
+  let aprRiskScore;
+  
+  if (avgApr <= 5) aprRiskScore = 25;        // Very safe: 0-5% APR
+  else if (avgApr <= 15) aprRiskScore = 20;  // Safe: 5-15% APR  
+  else if (avgApr <= 30) aprRiskScore = 15;  // Moderate: 15-30% APR
+  else if (avgApr <= 50) aprRiskScore = 10;  // Risky: 30-50% APR
+  else aprRiskScore = 5;                     // Very risky: >50% APR
+  
+  // Apply APR consistency bonus (up to 5 points extra)
   const aprVariance = calculateVariance(aprHistory);
-  const aprConsistency = Math.max(0, Math.min(20, 20 * Math.exp(-aprVariance * 0.5)));
+  const consistencyBonus = Math.max(0, Math.min(5, 5 * Math.exp(-aprVariance * 0.5)));
+  const aprScore = Math.min(25, aprRiskScore + consistencyBonus);
   
+  // 3. Liquidity Depth (20 points) - rewards deep liquidity
+  const liquidityScore = Math.min(20, Math.max(0, (Math.log(Math.max(tvl, 1000)) - 9) * 4)); // Starts scoring at 1M TVL
+  
+  // 4. Token Risk Assessment (20 points) - NEW: Assess token pair risk
+  const tokenRiskScore = assessTokenPairRisk(tokenPair);
+  
+  // 5. Volume Stability (15 points) - More realistic volume assessment
   const volumeToTvlRatio = volume24h / Math.max(tvl, 1);
-  const volumeEfficiency = Math.min(20, Math.max(0, volumeToTvlRatio * 2000));
+  let volumeScore;
+  if (volumeToTvlRatio < 0.01) volumeScore = 5;      // Very low volume
+  else if (volumeToTvlRatio < 0.1) volumeScore = 15; // Healthy volume
+  else if (volumeToTvlRatio < 0.5) volumeScore = 10; // High volume
+  else volumeScore = 5;                              // Excessive volume (risky)
   
-  const liquidityScore = Math.min(20, Math.max(0, (Math.log(Math.max(tvl, 1000)) - 6.9) * 2.9));
+  // 6. Protocol Trust (15 points) - Keep existing
+  const protocolTrust = Math.min(15, Math.max(0, protocolRisk * 15));
   
-  // Enhanced factors (20 points)
-  const protocolTrust = Math.min(10, Math.max(0, protocolRisk * 10)); // Protocol maturity
-  const governanceFactor = Math.min(10, Math.max(0, governanceScore * 10)); // Governance quality
-  
-  const totalScore = tvlStability + aprConsistency + volumeEfficiency + liquidityScore + protocolTrust + governanceFactor;
+  const totalScore = tvlStability + aprScore + liquidityScore + tokenRiskScore + volumeScore + protocolTrust;
   
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: { 
       tvlStability: Math.round(tvlStability * 100) / 100,
-      aprConsistency: Math.round(aprConsistency * 100) / 100,
-      volumeEfficiency: Math.round(volumeEfficiency * 100) / 100,
+      aprScore: Math.round(aprScore * 100) / 100,
       liquidityScore: Math.round(liquidityScore * 100) / 100,
-      protocolTrust: Math.round(protocolTrust * 100) / 100,
-      governanceFactor: Math.round(governanceFactor * 100) / 100
+      tokenRiskScore: Math.round(tokenRiskScore * 100) / 100,
+      volumeScore: Math.round(volumeScore * 100) / 100,
+      protocolTrust: Math.round(protocolTrust * 100) / 100
     }
   };
+}
+
+// NEW: Token pair risk assessment
+function assessTokenPairRisk(tokenPair) {
+  if (!tokenPair) return 10; // Default moderate score
+  
+  const tokens = tokenPair.toLowerCase().split('-');
+  const stablecoins = ['usdc', 'usdt', 'dai', 'frax', 'lusd', 'busd'];
+  const majorTokens = ['weth', 'wbtc', 'eth', 'btc'];
+  const establishedTokens = ['uni', 'link', 'aave', 'crv', 'bal', 'comp', 'mkr', 'snx'];
+  
+  let riskScore = 10; // Base score
+  
+  // Stablecoin pairs (highest safety)
+  const stablecoinCount = tokens.filter(token => stablecoins.includes(token)).length;
+  if (stablecoinCount === 2) riskScore = 20;      // Both stablecoins (safest)
+  else if (stablecoinCount === 1) riskScore = 17; // One stablecoin
+  
+  // Major token pairs
+  const majorTokenCount = tokens.filter(token => majorTokens.includes(token)).length;
+  if (majorTokenCount === 2) riskScore = Math.max(riskScore, 15); // Both major tokens
+  else if (majorTokenCount === 1 && stablecoinCount === 1) riskScore = Math.max(riskScore, 17); // Major + stable
+  else if (majorTokenCount === 1) riskScore = Math.max(riskScore, 13); // One major token
+  
+  // Established DeFi tokens
+  const establishedCount = tokens.filter(token => establishedTokens.includes(token)).length;
+  if (establishedCount >= 1) riskScore = Math.max(riskScore, 12);
+  
+  // Penalty for unknown/risky tokens
+  const knownTokens = [...stablecoins, ...majorTokens, ...establishedTokens];
+  const unknownTokenCount = tokens.filter(token => !knownTokens.includes(token)).length;
+  if (unknownTokenCount === 2) riskScore = Math.min(riskScore, 5);  // Both unknown (very risky)
+  else if (unknownTokenCount === 1) riskScore = Math.min(riskScore, 10); // One unknown
+  
+  return riskScore;
 }
 
 function calculateVariance(values) {
@@ -295,6 +350,7 @@ async function processPoolDataEnhanced() {
           volatility, 
           protocolRisk,
           governanceScore,
+          tokenPair: pool.symbol,  // Add token pair for risk assessment
           liquidityDepth: tvl / 1000000 
         };
         
@@ -328,11 +384,11 @@ async function processPoolDataEnhanced() {
           // Enhanced health metrics
           health_score: Math.round(healthScore.totalScore * 100) / 100,
           tvl_stability: healthScore.breakdown.tvlStability,
-          apr_consistency: healthScore.breakdown.aprConsistency,
-          volume_efficiency: healthScore.breakdown.volumeEfficiency,
+          apr_score: healthScore.breakdown.aprScore,
           liquidity_score: healthScore.breakdown.liquidityScore,
+          token_risk_score: healthScore.breakdown.tokenRiskScore,
+          volume_score: healthScore.breakdown.volumeScore,
           protocol_trust: healthScore.breakdown.protocolTrust,
-          governance_score: healthScore.breakdown.governanceFactor,
           
           // Additional metrics
           risk_category: riskCategory,
