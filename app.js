@@ -84,7 +84,7 @@ function calculateGovernanceScore(project, tvl) {
   
   const base = baseGovernance[project] || baseGovernance['default'];
   const tvlBoost = Math.min(0.2, tvl / 100000000); // Up to 0.2 boost for high TVL
-  return Math.min(1, base + tvlBonus);
+  return Math.min(1, base + tvlBoost);
 }
 
 // Pool quality filtering with enhanced criteria
