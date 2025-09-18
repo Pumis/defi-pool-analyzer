@@ -637,4 +637,110 @@ app.post('/api/refresh', async (req, res) => {
     res.json({ 
       success: true, 
       message: `Enhanced refresh completed: ${pools.length} pools processed`,
-      totalCached: cachedPools.length
+      totalCached: cachedPools.length,
+      duration: Math.round(duration/1000) + ' seconds',
+      processingStats,
+      data: pools.slice(0, 3) 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/refresh', async (req, res) => {
+  try {
+    console.log('Manual enhanced refresh triggered (GET)...');
+    const pools = await processPoolDataEnhanced();
+    res.json({ 
+      success: true, 
+      message: `Enhanced refresh completed: ${pools.length} pools processed`, 
+      totalCached: cachedPools.length,
+      processingStats,
+      data: pools.slice(0, 3) 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Enhanced top pools endpoint
+app.get('/api/top', async (req, res) => {
+  try {
+    const { category = 'health', limit = 10, platform } = req.query;
+    let pools = [...cachedPools];
+    
+    if (platform && platform !== 'all') {
+      pools = pools.filter(p => p.platform === platform);
+    }
+    
+    switch (category) {
+      case 'tvl':
+        pools.sort((a, b) => b.tvl - a.tvl);
+        break;
+      case 'volume':
+        pools.sort((a, b) => b.volume_24h - a.volume_24h);
+        break;
+      case 'apr':
+        pools.sort((a, b) => b.avg_apr - a.avg_apr);
+        break;
+      case 'conservative':
+        pools = pools.filter(p => p.health_score >= 80).sort((a, b) => b.health_score - a.health_score);
+        break;
+      case 'trending':
+        pools.sort((a, b) => b.volume_trend - a.volume_trend);
+        break;
+      case 'health':
+      default:
+        pools.sort((a, b) => b.health_score - a.health_score);
+    }
+    
+    res.json({
+      success: true,
+      category,
+      data: pools.slice(0, parseInt(limit))
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Pool-specific endpoint
+app.get('/api/pools/:poolId', async (req, res) => {
+  try {
+    const { poolId } = req.params;
+    const pool = cachedPools.find(p => p.pool_id === poolId);
+    
+    if (!pool) {
+      return res.status(404).json({ success: false, error: 'Pool not found' });
+    }
+    
+    res.json({ success: true, data: pool });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Scheduled updates - every 2 hours for enhanced processing
+cron.schedule('0 */2 * * *', async () => {
+  console.log('Running scheduled enhanced data update...');
+  await processPoolDataEnhanced();
+});
+
+// Initial load with enhanced processing
+setTimeout(async () => {
+  console.log('Loading initial enhanced data...');
+  await processPoolDataEnhanced();
+}, 15000);
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  process.exit(0);
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`DeFi Pool Health Analyzer API v2.1 (Enhanced) running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`Enhanced features: Multi-protocol, governance scoring, market sentiment`);
+  console.log(`Data updates: Every 2 hours automatic, 12 pools per manual refresh`);
+});
