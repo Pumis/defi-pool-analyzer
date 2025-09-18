@@ -16,94 +16,117 @@ const NEWS_CACHE_FILE = './news_cache.json';
 app.use(cors());
 app.use(express.json());
 
-// Enhanced Health scoring algorithm with realistic risk assessment
+// Comprehensive Health scoring algorithm - considers all major LP risks
 function calculateHealthScore(poolData) {
   const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore, tokenPair } = poolData;
   
-  // 1. TVL Stability (25 points) - unchanged, this is good
+  // 1. Liquidity Risk Assessment (25 points) - Most critical factor
   const tvlVariance = calculateVariance(tvlHistory);
-  const tvlStability = Math.max(0, Math.min(25, 25 * Math.exp(-tvlVariance * 2)));
+  const liquidityRisk = Math.max(0, Math.min(25, 25 * Math.exp(-tvlVariance * 3))); // More sensitive to volatility
   
-  // 2. APR Risk Assessment (25 points) - FIXED: Lower APR = higher score
+  // Bonus for absolute liquidity size (deeper = safer)
+  const liquidityBonus = Math.min(5, Math.log(Math.max(tvl, 10000)) / Math.log(10) - 4); // Bonus starts at $10K TVL
+  const totalLiquidityScore = Math.min(25, liquidityRisk + liquidityBonus);
+  
+  // 2. Yield Sustainability Assessment (20 points) - Lower sustainable yields = safer
   const avgApr = aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0;
-  let aprRiskScore;
+  let yieldSustainabilityScore;
   
-  if (avgApr <= 5) aprRiskScore = 25;        // Very safe: 0-5% APR
-  else if (avgApr <= 15) aprRiskScore = 20;  // Safe: 5-15% APR  
-  else if (avgApr <= 30) aprRiskScore = 15;  // Moderate: 15-30% APR
-  else if (avgApr <= 50) aprRiskScore = 10;  // Risky: 30-50% APR
-  else aprRiskScore = 5;                     // Very risky: >50% APR
+  if (avgApr <= 3) yieldSustainabilityScore = 20;        // Ultra safe: 0-3% (stablecoin pairs)
+  else if (avgApr <= 8) yieldSustainabilityScore = 18;   // Very safe: 3-8% (major pairs)
+  else if (avgApr <= 15) yieldSustainabilityScore = 15;  // Safe: 8-15% (established tokens)
+  else if (avgApr <= 25) yieldSustainabilityScore = 10;  // Moderate risk: 15-25%
+  else if (avgApr <= 50) yieldSustainabilityScore = 5;   // High risk: 25-50% (likely unsustainable)
+  else yieldSustainabilityScore = 2;                     // Very high risk: >50% (probable rug/farming dump)
   
-  // Apply APR consistency bonus (up to 5 points extra)
+  // Yield consistency bonus/penalty
   const aprVariance = calculateVariance(aprHistory);
-  const consistencyBonus = Math.max(0, Math.min(5, 5 * Math.exp(-aprVariance * 0.5)));
-  const aprScore = Math.min(25, aprRiskScore + consistencyBonus);
+  const yieldConsistency = Math.max(-3, Math.min(3, 3 * Math.exp(-aprVariance * 2) - 1.5));
+  const totalYieldScore = Math.max(0, Math.min(20, yieldSustainabilityScore + yieldConsistency));
   
-  // 3. Liquidity Depth (20 points) - rewards deep liquidity
-  const liquidityScore = Math.min(20, Math.max(0, (Math.log(Math.max(tvl, 1000)) - 9) * 4)); // Starts scoring at 1M TVL
+  // 3. Impermanent Loss Risk (20 points) - Token correlation and volatility
+  const impermanentLossRisk = assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory);
   
-  // 4. Token Risk Assessment (20 points) - NEW: Assess token pair risk
-  const tokenRiskScore = assessTokenPairRisk(tokenPair);
+  // 4. Protocol Security & Maturity (15 points)
+  const protocolScore = Math.min(15, Math.max(0, protocolRisk * 15));
   
-  // 5. Volume Stability (15 points) - More realistic volume assessment
+  // 5. Market Activity Health (10 points) - Volume patterns indicate real usage vs manipulation  
   const volumeToTvlRatio = volume24h / Math.max(tvl, 1);
-  let volumeScore;
-  if (volumeToTvlRatio < 0.01) volumeScore = 5;      // Very low volume
-  else if (volumeToTvlRatio < 0.1) volumeScore = 15; // Healthy volume
-  else if (volumeToTvlRatio < 0.5) volumeScore = 10; // High volume
-  else volumeScore = 5;                              // Excessive volume (risky)
+  let activityScore;
   
-  // 6. Protocol Trust (15 points) - Keep existing
-  const protocolTrust = Math.min(15, Math.max(0, protocolRisk * 15));
+  if (volumeToTvlRatio < 0.005) activityScore = 3;       // Very low activity (stagnant)
+  else if (volumeToTvlRatio < 0.02) activityScore = 6;   // Low but healthy activity
+  else if (volumeToTvlRatio < 0.1) activityScore = 10;   // Optimal activity level
+  else if (volumeToTvlRatio < 0.5) activityScore = 7;    // High activity (could be good or manipulated)
+  else activityScore = 3;                                // Excessive activity (likely manipulation)
   
-  const totalScore = tvlStability + aprScore + liquidityScore + tokenRiskScore + volumeScore + protocolTrust;
+  // 6. Time-tested Stability (10 points) - Longer track record = more reliable
+  const dataPoints = Math.min(aprHistory.length, tvlHistory.length);
+  const trackRecordScore = Math.min(10, Math.max(0, (dataPoints - 7) / 30 * 10)); // Bonus for >7 days, max at 37+ days
+  
+  const totalScore = totalLiquidityScore + totalYieldScore + impermanentLossRisk + protocolScore + activityScore + trackRecordScore;
   
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
     breakdown: { 
-      tvlStability: Math.round(tvlStability * 100) / 100,
-      aprScore: Math.round(aprScore * 100) / 100,
-      liquidityScore: Math.round(liquidityScore * 100) / 100,
-      tokenRiskScore: Math.round(tokenRiskScore * 100) / 100,
-      volumeScore: Math.round(volumeScore * 100) / 100,
-      protocolTrust: Math.round(protocolTrust * 100) / 100
+      liquidityScore: Math.round(totalLiquidityScore * 100) / 100,
+      yieldScore: Math.round(totalYieldScore * 100) / 100,
+      impermanentLossScore: Math.round(impermanentLossRisk * 100) / 100,
+      protocolScore: Math.round(protocolScore * 100) / 100,
+      activityScore: Math.round(activityScore * 100) / 100,
+      trackRecordScore: Math.round(trackRecordScore * 100) / 100
     }
   };
 }
 
-// NEW: Token pair risk assessment
-function assessTokenPairRisk(tokenPair) {
-  if (!tokenPair) return 10; // Default moderate score
+// Enhanced Impermanent Loss Risk Assessment  
+function assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory) {
+  if (!tokenPair) return 10;
   
   const tokens = tokenPair.toLowerCase().split('-');
-  const stablecoins = ['usdc', 'usdt', 'dai', 'frax', 'lusd', 'busd'];
-  const majorTokens = ['weth', 'wbtc', 'eth', 'btc'];
-  const establishedTokens = ['uni', 'link', 'aave', 'crv', 'bal', 'comp', 'mkr', 'snx'];
+  const stablecoins = ['usdc', 'usdt', 'dai', 'frax', 'lusd', 'busd', 'usdd'];
+  const correlatedPairs = [
+    ['weth', 'eth'], ['wbtc', 'btc'], ['steth', 'weth'], ['wsteth', 'weth'], 
+    ['reth', 'weth'], ['cbeth', 'weth'], ['usdc', 'usdt'], ['dai', 'usdc']
+  ];
   
-  let riskScore = 10; // Base score
-  
-  // Stablecoin pairs (highest safety)
+  // Check for stablecoin pairs (lowest IL risk)
   const stablecoinCount = tokens.filter(token => stablecoins.includes(token)).length;
-  if (stablecoinCount === 2) riskScore = 20;      // Both stablecoins (safest)
-  else if (stablecoinCount === 1) riskScore = 17; // One stablecoin
+  if (stablecoinCount === 2) return 20; // Both stablecoins - minimal IL risk
   
-  // Major token pairs
+  // Check for highly correlated pairs (low IL risk)
+  const isCorrelated = correlatedPairs.some(pair => 
+    (tokens.includes(pair[0]) && tokens.includes(pair[1])) ||
+    (tokens.includes(pair[1]) && tokens.includes(pair[0]))
+  );
+  if (isCorrelated) return 18; // Highly correlated - low IL risk
+  
+  // One stablecoin + one volatile (moderate IL risk)
+  if (stablecoinCount === 1) return 15;
+  
+  // Major tokens (ETH, BTC derivatives) - moderate IL risk
+  const majorTokens = ['weth', 'eth', 'wbtc', 'btc'];
   const majorTokenCount = tokens.filter(token => majorTokens.includes(token)).length;
-  if (majorTokenCount === 2) riskScore = Math.max(riskScore, 15); // Both major tokens
-  else if (majorTokenCount === 1 && stablecoinCount === 1) riskScore = Math.max(riskScore, 17); // Major + stable
-  else if (majorTokenCount === 1) riskScore = Math.max(riskScore, 13); // One major token
+  if (majorTokenCount >= 1) return 12;
   
-  // Established DeFi tokens
+  // Established DeFi tokens - higher IL risk
+  const establishedTokens = ['uni', 'link', 'aave', 'crv', 'bal', 'comp', 'mkr', 'snx'];
   const establishedCount = tokens.filter(token => establishedTokens.includes(token)).length;
-  if (establishedCount >= 1) riskScore = Math.max(riskScore, 12);
+  if (establishedCount >= 1) return 10;
   
-  // Penalty for unknown/risky tokens
-  const knownTokens = [...stablecoins, ...majorTokens, ...establishedTokens];
-  const unknownTokenCount = tokens.filter(token => !knownTokens.includes(token)).length;
-  if (unknownTokenCount === 2) riskScore = Math.min(riskScore, 5);  // Both unknown (very risky)
-  else if (unknownTokenCount === 1) riskScore = Math.min(riskScore, 10); // One unknown
+  // Check for extreme volatility indicators in historical data
+  if (aprHistory.length > 7) {
+    const recentAprVolatility = calculateVariance(aprHistory.slice(-7));
+    if (recentAprVolatility > 0.5) return 5; // Extreme recent volatility
+  }
   
-  return riskScore;
+  if (tvlHistory.length > 7) {
+    const recentTvlVolatility = calculateVariance(tvlHistory.slice(-7));
+    if (recentTvlVolatility > 0.3) return 6; // High recent TVL volatility
+  }
+  
+  // Unknown token pairs - highest IL risk
+  return 8;
 }
 
 function calculateVariance(values) {
@@ -383,12 +406,12 @@ async function processPoolDataEnhanced() {
           
           // Enhanced health metrics
           health_score: Math.round(healthScore.totalScore * 100) / 100,
-          tvl_stability: healthScore.breakdown.tvlStability,
-          apr_score: healthScore.breakdown.aprScore,
           liquidity_score: healthScore.breakdown.liquidityScore,
-          token_risk_score: healthScore.breakdown.tokenRiskScore,
-          volume_score: healthScore.breakdown.volumeScore,
-          protocol_trust: healthScore.breakdown.protocolTrust,
+          yield_score: healthScore.breakdown.yieldScore,
+          impermanent_loss_score: healthScore.breakdown.impermanentLossScore,
+          protocol_score: healthScore.breakdown.protocolScore,
+          activity_score: healthScore.breakdown.activityScore,
+          track_record_score: healthScore.breakdown.trackRecordScore,
           
           // Additional metrics
           risk_category: riskCategory,
