@@ -210,11 +210,13 @@
             font-size: 0.8em;
             font-weight: 600;
             transition: all 0.3s ease;
+            color: #333; /* Better visibility for inactive buttons */
         }
         
         .sort-button:hover, .sort-button.active {
             background: #667eea;
             color: white;
+            border-color: #667eea;
         }
         
         .pool-item {
@@ -286,11 +288,11 @@
         
         .risk-badge {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 5px; /* Moved higher to avoid covering health scores */
+            right: 5px;
             padding: 4px 8px;
             border-radius: 12px;
-            font-size: 0.7em;
+            font-size: 0.65em; /* Made slightly smaller */
             font-weight: 600;
             text-transform: uppercase;
         }
@@ -329,11 +331,13 @@
             font-size: 0.8em;
             font-weight: 600;
             transition: all 0.3s ease;
+            color: #333; /* Better visibility for inactive buttons */
         }
         
         .period-button:hover, .period-button.active {
             background: #667eea;
             color: white;
+            border-color: #667eea;
         }
         
         .ai-insights {
@@ -496,7 +500,8 @@
                     <option value="all">All Platforms</option>
                     <option value="uniswap-v3">Uniswap V3</option>
                     <option value="sushiswap">SushiSwap</option>
-                    <option value="balancer">Balancer</option>
+                    <option value="balancer-v2">Balancer V2</option>
+                    <option value="curve">Curve</option>
                 </select>
             </div>
             
@@ -1068,7 +1073,7 @@
         
         async function refreshData() {
             try {
-                showStatus('Refreshing pool data...', 'info');
+                showStatus('Triggering server refresh...', 'info');
                 
                 const response = await fetch(`${API_BASE_URL}/refresh`, {
                     method: 'POST',
@@ -1079,15 +1084,27 @@
                 
                 if (response.ok) {
                     const result = await response.json();
-                    showStatus(`Server refresh triggered! Updated ${result.totalCached} pools.`, 'success');
+                    showStatus(`Server is refreshing ${result.message}. Please wait 30 seconds...`, 'success');
+                    
+                    // Show countdown timer
+                    let countdown = 30;
+                    const countdownInterval = setInterval(() => {
+                        countdown--;
+                        showStatus(`Refreshing data... ${countdown} seconds remaining`, 'info');
+                    }, 1000);
                     
                     setTimeout(async () => {
+                        clearInterval(countdownInterval);
+                        showStatus('Fetching updated data...', 'info');
+                        
                         await fetchRealPoolData();
                         await updateMetrics();
                         renderPools();
                         renderChart();
                         generateAIInsights();
-                    }, 3000);
+                        
+                        showStatus('Data refresh completed!', 'success');
+                    }, 30000); // Wait 30 seconds for server processing
                 } else {
                     throw new Error('Server refresh failed');
                 }
