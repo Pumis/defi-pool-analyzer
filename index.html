@@ -178,6 +178,12 @@
             margin-bottom: 30px;
         }
         
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
         .pool-list {
             background: #f8f9fa;
             border-radius: 15px;
@@ -348,6 +354,77 @@
             letter-spacing: normal;
         }
         
+        /* Risk Analysis Section */
+        .risk-analysis-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .risk-analysis-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .risk-analysis-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .risk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .risk-metric {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .risk-metric-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .risk-metric-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .risk-metric-max {
+            font-size: 0.8em;
+            color: #888;
+        }
+        
+        .risk-summary {
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .risk-summary h4 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .risk-summary p {
+            color: #666;
+            line-height: 1.5;
+        }
+        
         /* Notification */
         .notification {
             position: fixed;
@@ -503,6 +580,11 @@
                 min-height: 250px;
             }
             
+            .risk-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            
             .notification {
                 left: 10px;
                 right: 10px;
@@ -532,6 +614,10 @@
             .pool-item {
                 padding: 12px;
             }
+            
+            .risk-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -552,8 +638,8 @@
                 </div>
                 <div class="feature-card" onclick="exportData()">
                     <div class="feature-icon">📊</div>
-                    <h4>Export Data</h4>
-                    <p>Download pool analytics</p>
+                    <h4>Export Report</h4>
+                    <p>Download HTML report</p>
                 </div>
                 <div class="feature-card" onclick="toggleAlerts()">
                     <div class="feature-icon">🔔</div>
@@ -633,18 +719,30 @@
                 </div>
             </div>
             
-            <div class="chart-container">
-                <div class="chart-header">
-                    <div class="chart-title">Pool Performance</div>
-                    <div class="chart-controls">
-                        <button onclick="changeChartPeriod('7')">7D</button>
-                        <button onclick="changeChartPeriod('30')" class="active">30D</button>
-                        <button onclick="changeChartPeriod('90')">90D</button>
-                        <button onclick="changeChartPeriod('365')">1Y</button>
+            <div class="right-panel">
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title">Pool Performance</div>
+                        <div class="chart-controls">
+                            <button onclick="changeChartPeriod('7')">7D</button>
+                            <button onclick="changeChartPeriod('30')" class="active">30D</button>
+                            <button onclick="changeChartPeriod('90')">90D</button>
+                            <button onclick="changeChartPeriod('365')">1Y</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="performanceChart"></canvas>
                     </div>
                 </div>
-                <div class="chart-wrapper">
-                    <canvas id="performanceChart"></canvas>
+                
+                <!-- Risk Analysis Section -->
+                <div class="risk-analysis-section" id="riskAnalysisSection">
+                    <div class="risk-analysis-header">
+                        <span class="risk-analysis-title">🎯 Risk Analysis</span>
+                    </div>
+                    <div id="riskAnalysisContent">
+                        <p style="text-align: center; color: #666; padding: 20px;">Select a pool to see detailed risk analysis</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -820,6 +918,7 @@
             selectedPool = poolData;
             renderPools();
             renderChart();
+            renderRiskAnalysis();
         }
         
         function renderChart() {
@@ -901,6 +1000,54 @@
             });
         }
         
+        function renderRiskAnalysis() {
+            if (!selectedPool) {
+                document.getElementById('riskAnalysisContent').innerHTML = 
+                    '<p style="text-align: center; color: #666; padding: 20px;">Select a pool to see detailed risk analysis</p>';
+                return;
+            }
+            
+            const pool = selectedPool;
+            const riskCategory = pool.risk_category || { label: 'Unknown', description: 'Risk category not available' };
+            
+            const content = `
+                <div class="risk-grid">
+                    <div class="risk-metric">
+                        <div class="risk-metric-label">Liquidity Score</div>
+                        <div class="risk-metric-value">${(pool.liquidity_score || 0).toFixed(1)}<span class="risk-metric-max">/25</span></div>
+                    </div>
+                    <div class="risk-metric">
+                        <div class="risk-metric-label">Yield Score</div>
+                        <div class="risk-metric-value">${(pool.yield_score || 0).toFixed(1)}<span class="risk-metric-max">/20</span></div>
+                    </div>
+                    <div class="risk-metric">
+                        <div class="risk-metric-label">IL Risk Score</div>
+                        <div class="risk-metric-value">${(pool.impermanent_loss_score || 0).toFixed(1)}<span class="risk-metric-max">/20</span></div>
+                    </div>
+                    <div class="risk-metric">
+                        <div class="risk-metric-label">Protocol Score</div>
+                        <div class="risk-metric-value">${(pool.protocol_score || 0).toFixed(1)}<span class="risk-metric-max">/15</span></div>
+                    </div>
+                    <div class="risk-metric">
+                        <div class="risk-metric-label">Activity Score</div>
+                        <div class="risk-metric-value">${(pool.activity_score || 0).toFixed(1)}<span class="risk-metric-max">/10</span></div>
+                    </div>
+                    <div class="risk-metric">
+                        <div class="risk-metric-label">Track Record</div>
+                        <div class="risk-metric-value">${(pool.track_record_score || 0).toFixed(1)}<span class="risk-metric-max">/10</span></div>
+                    </div>
+                </div>
+                <div class="risk-summary">
+                    <h4>Risk Assessment: ${riskCategory.label}</h4>
+                    <p><strong>Overall Health Score:</strong> ${pool.health_score.toFixed(1)}/100</p>
+                    <p><strong>Data Quality:</strong> ${pool.data_quality || 'Unknown'} (${pool.data_points || 0} days of data)</p>
+                    <p><strong>Analysis:</strong> ${riskCategory.description}</p>
+                </div>
+            `;
+            
+            document.getElementById('riskAnalysisContent').innerHTML = content;
+        }
+        
         function changeChartPeriod(period) {
             document.querySelectorAll('.chart-controls button').forEach(btn => btn.classList.remove('active'));
             event.target.classList.add('active');
@@ -948,25 +1095,273 @@
         }
         
         function exportData() {
-            const exportData = {
-                timestamp: new Date().toISOString(),
-                pools: pools,
-                watchlist: watchlist,
-                selectedPool: selectedPool,
-                totalPools: pools.length
-            };
+            const reportDate = new Date().toLocaleDateString();
+            const reportTime = new Date().toLocaleTimeString();
             
-            const dataStr = JSON.stringify(exportData, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const topPools = pools.slice(0, 10);
+            const avgHealthScore = pools.reduce((sum, p) => sum + p.health_score, 0) / pools.length;
+            const totalTvl = pools.reduce((sum, p) => sum + p.tvl, 0);
+            const totalVolume = pools.reduce((sum, p) => sum + p.volume_24h, 0);
             
-            const exportFileDefaultName = `defi-pools-${new Date().toISOString().split('T')[0]}.json`;
+            const htmlContent = `
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>DeFi Pool Health Analysis Report - ${reportDate}</title>
+                    <style>
+                        body { 
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                            margin: 40px; 
+                            background: #f5f7fa; 
+                            line-height: 1.6;
+                        }
+                        .container { 
+                            max-width: 900px; 
+                            margin: 0 auto; 
+                            background: white; 
+                            padding: 40px; 
+                            border-radius: 12px; 
+                            box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
+                        }
+                        .header { 
+                            text-align: center; 
+                            margin-bottom: 40px; 
+                            border-bottom: 3px solid #667eea; 
+                            padding-bottom: 20px; 
+                        }
+                        .header h1 { 
+                            color: #667eea; 
+                            margin: 0 0 10px 0; 
+                            font-size: 2.5em; 
+                        }
+                        .header p { 
+                            color: #666; 
+                            margin: 0; 
+                            font-size: 1.1em;
+                        }
+                        .summary { 
+                            display: grid; 
+                            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+                            gap: 20px; 
+                            margin-bottom: 40px; 
+                        }
+                        .summary-card { 
+                            background: linear-gradient(135deg, #667eea, #764ba2); 
+                            color: white; 
+                            padding: 25px; 
+                            border-radius: 12px; 
+                            text-align: center; 
+                        }
+                        .summary-card h3 { 
+                            margin: 0 0 15px 0; 
+                            font-size: 1.1em; 
+                            opacity: 0.9; 
+                        }
+                        .summary-card .value { 
+                            font-size: 2em; 
+                            font-weight: bold; 
+                            margin: 0; 
+                        }
+                        .section {
+                            margin-bottom: 40px;
+                        }
+                        .section h2 {
+                            color: #333;
+                            margin-bottom: 20px;
+                            font-size: 1.5em;
+                            border-bottom: 2px solid #f0f0f0;
+                            padding-bottom: 10px;
+                        }
+                        .pools-table { 
+                            width: 100%; 
+                            border-collapse: collapse; 
+                            margin-bottom: 30px; 
+                            background: white;
+                        }
+                        .pools-table th, .pools-table td { 
+                            padding: 15px 10px; 
+                            text-align: left; 
+                            border-bottom: 1px solid #eee; 
+                        }
+                        .pools-table th { 
+                            background: #667eea; 
+                            color: white; 
+                            font-weight: 600; 
+                            font-size: 0.9em;
+                        }
+                        .pools-table tr:nth-child(even) { 
+                            background: #f8f9fa; 
+                        }
+                        .pools-table tr:hover {
+                            background: #e3f2fd;
+                        }
+                        .risk-excellent { 
+                            background: #d4edda; 
+                            color: #155724; 
+                            padding: 4px 8px; 
+                            border-radius: 12px; 
+                            font-size: 0.8em; 
+                            font-weight: bold; 
+                        }
+                        .risk-good { 
+                            background: #d1ecf1; 
+                            color: #0c5460; 
+                            padding: 4px 8px; 
+                            border-radius: 12px; 
+                            font-size: 0.8em; 
+                            font-weight: bold; 
+                        }
+                        .risk-fair { 
+                            background: #fff3cd; 
+                            color: #856404; 
+                            padding: 4px 8px; 
+                            border-radius: 12px; 
+                            font-size: 0.8em; 
+                            font-weight: bold; 
+                        }
+                        .risk-poor { 
+                            background: #f8d7da; 
+                            color: #721c24; 
+                            padding: 4px 8px; 
+                            border-radius: 12px; 
+                            font-size: 0.8em; 
+                            font-weight: bold; 
+                        }
+                        .platform { 
+                            background: #e3f2fd; 
+                            color: #1565c0; 
+                            padding: 3px 8px; 
+                            border-radius: 8px; 
+                            font-size: 0.8em; 
+                            text-transform: capitalize; 
+                        }
+                        .footer { 
+                            text-align: center; 
+                            color: #666; 
+                            font-size: 0.9em; 
+                            border-top: 1px solid #eee; 
+                            padding-top: 20px; 
+                            margin-top: 40px;
+                        }
+                        .watchlist-section {
+                            background: #f8f9fa;
+                            padding: 20px;
+                            border-radius: 10px;
+                            margin-bottom: 30px;
+                        }
+                        @media print { 
+                            body { background: white; margin: 0; } 
+                            .container { box-shadow: none; } 
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h1>DeFi Pool Health Analysis</h1>
+                            <p>Generated on ${reportDate} at ${reportTime}</p>
+                        </div>
+                        
+                        <div class="summary">
+                            <div class="summary-card">
+                                <h3>Total Pools Analyzed</h3>
+                                <div class="value">${pools.length}</div>
+                            </div>
+                            <div class="summary-card">
+                                <h3>Average Health Score</h3>
+                                <div class="value">${Math.round(avgHealthScore)}/100</div>
+                            </div>
+                            <div class="summary-card">
+                                <h3>Total TVL</h3>
+                                <div class="value">${formatNumber(totalTvl)}</div>
+                            </div>
+                            <div class="summary-card">
+                                <h3>24h Volume</h3>
+                                <div class="value">${formatNumber(totalVolume)}</div>
+                            </div>
+                        </div>
+                        
+                        ${watchlist.length > 0 ? `
+                        <div class="section">
+                            <h2>⭐ Your Watchlist</h2>
+                            <div class="watchlist-section">
+                                <p><strong>${watchlist.length} pools</strong> in your watchlist:</p>
+                                <ul style="margin-top: 15px;">
+                                    ${pools.filter(p => watchlist.includes(p.pool_id)).map(p => 
+                                        `<li><strong>${p.token_pair}</strong> - Health: ${p.health_score.toFixed(1)}/100 (${p.risk_category?.label || 'Unknown'})</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        <div class="section">
+                            <h2>Top ${topPools.length} Pools by Health Score</h2>
+                            <table class="pools-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>Token Pair</th>
+                                        <th>Platform</th>
+                                        <th>Health Score</th>
+                                        <th>Risk Level</th>
+                                        <th>TVL</th>
+                                        <th>APR</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${topPools.map((pool, index) => `
+                                        <tr>
+                                            <td><strong>#${index + 1}</strong></td>
+                                            <td><strong>${pool.token_pair}</strong></td>
+                                            <td><span class="platform">${platformNames[pool.platform] || pool.platform}</span></td>
+                                            <td><strong>${pool.health_score.toFixed(1)}/100</strong></td>
+                                            <td><span class="risk-${getHealthClass(pool.health_score).replace('health-', '')}">${pool.risk_category?.label || 'Unknown'}</span></td>
+                                            <td>${formatNumber(pool.tvl)}</td>
+                                            <td>${pool.avg_apr ? pool.avg_apr.toFixed(2) + '%' : 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="section">
+                            <h2>Analysis Methodology</h2>
+                            <p>This report analyzes DeFi liquidity pools using a comprehensive 6-factor health scoring system:</p>
+                            <ul style="margin-top: 15px; margin-left: 20px;">
+                                <li><strong>Liquidity Score (25 points):</strong> TVL stability and depth</li>
+                                <li><strong>Yield Score (20 points):</strong> APR sustainability and consistency</li>
+                                <li><strong>Impermanent Loss Score (20 points):</strong> Token correlation and volatility risk</li>
+                                <li><strong>Protocol Score (15 points):</strong> Platform security and maturity</li>
+                                <li><strong>Activity Score (10 points):</strong> Trading volume patterns</li>
+                                <li><strong>Track Record Score (10 points):</strong> Historical performance data</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="footer">
+                            <p><strong>Disclaimer:</strong> This analysis is for informational purposes only and should not be considered financial advice. 
+                            DeFi investments carry significant risks including impermanent loss, smart contract risks, and market volatility. 
+                            Always conduct your own research and consider your risk tolerance before making investment decisions.</p>
+                            <p style="margin-top: 15px;">Report generated by DeFi Pool Health Analyzer</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `;
             
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', exportFileDefaultName);
-            linkElement.click();
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `defi-pool-analysis-${new Date().toISOString().split('T')[0]}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
             
-            showNotification('Pool data exported successfully!');
+            showNotification('HTML report exported successfully!');
         }
         
         function toggleAlerts() {
@@ -989,23 +1384,12 @@
                 return;
             }
             
-            const riskBreakdown = `
-Pool: ${selectedPool.token_pair}
-Overall Health: ${selectedPool.health_score}/100
-
-Risk Breakdown:
-• Liquidity Score: ${selectedPool.liquidity_score || 'N/A'}/25
-• Yield Score: ${selectedPool.yield_score || 'N/A'}/20  
-• IL Risk Score: ${selectedPool.impermanent_loss_score || 'N/A'}/20
-• Protocol Score: ${selectedPool.protocol_score || 'N/A'}/15
-• Activity Score: ${selectedPool.activity_score || 'N/A'}/10
-• Track Record: ${selectedPool.track_record_score || 'N/A'}/10
-
-Risk Category: ${selectedPool.risk_category ? selectedPool.risk_category.label : 'Unknown'}
-Data Quality: ${selectedPool.data_quality || 'Unknown'}
-            `;
-            
-            alert(riskBreakdown);
+            // Scroll to risk analysis section
+            document.getElementById('riskAnalysisSection').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+            showNotification('Risk analysis is now visible below the chart!');
         }
         
         function showPortfolioTracker() {
@@ -1041,6 +1425,8 @@ Data Quality: ${selectedPool.data_quality || 'Unknown'}
                             chart.destroy();
                             chart = null;
                         }
+                        document.getElementById('riskAnalysisContent').innerHTML = 
+                            '<p style="text-align: center; color: #666; padding: 20px;">No pools found matching your criteria</p>';
                     }
                 } else {
                     throw new Error(data.error || 'Failed to filter pools');
