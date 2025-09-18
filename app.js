@@ -102,11 +102,15 @@ async function fetchDefiLlamaUniswapV3Pools() {
     
     // Enhanced filtering for quality pools
     const uniswapPools = allPools
-      .filter(pool => pool.project === "uniswap-v3" && pool.chain === "Ethereum")
+      .filter(pool => {
+        // Include multiple DEX protocols
+        const supportedProjects = ['uniswap-v3', 'sushiswap', 'balancer-v2', 'curve'];
+        return supportedProjects.includes(pool.project) && pool.chain === "Ethereum";
+      })
       .filter(isQualityPool)
       .sort((a, b) => (b.tvlUsd || 0) - (a.tvlUsd || 0)); // Sort by TVL descending
     
-    console.log(`Found ${uniswapPools.length} quality Uniswap V3 mainnet pools from DefiLlama`);
+    console.log(`Found ${uniswapPools.length} quality pools from multiple DEXes (Uniswap, SushiSwap, Balancer, Curve)`);
     fs.writeFileSync(POOLS_CACHE_FILE, JSON.stringify(uniswapPools, null, 2));
     return uniswapPools;
   } catch (error) {
@@ -228,7 +232,7 @@ async function processPoolData() {
         
         const processedPool = {
           pool_id: pool.pool,
-          platform: 'uniswap-v3',
+          platform: pool.project, // This will now show 'sushiswap', 'balancer-v2', etc.
           token_pair: pool.symbol,
           token0_symbol: pool.symbol.split('-')[0],
           token1_symbol: pool.symbol.split('-')[1] || '',
@@ -257,7 +261,12 @@ async function processPoolData() {
         processedPools.push(processedPool);
         added++;
         
-        console.log(`✓ Processed ${pool.symbol} - Health Score: ${processedPool.health_score} (${riskCategory.label})`);
+        console.log(`✓ Processed ${pool.symbol} (${pool.project}) - Health Score: ${processedPool.health_score} (${riskCategory.label})`);
+        
+        // Add a longer delay every 5 pools for better refresh visibility
+        if (added % 5 === 0) {
+          await delay(1000);
+        }
         
       } catch (error) {
         console.error(`Error processing pool ${pool.pool}:`, error.message);
