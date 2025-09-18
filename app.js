@@ -420,7 +420,7 @@ function getRiskCategory(healthScore) {
 // Enhanced API routes
 app.get('/', (req, res) => {
   res.json({
-    message: 'DeFi Pool Health Analyzer API (Enhanced)',
+    message: 'Advanced DeFi Pool Risk Analyzer API (Enhanced)',
     status: 'running',
     version: '2.1.0',
     totalPools: cachedPools.length,
@@ -429,7 +429,7 @@ app.get('/', (req, res) => {
     supportedProtocols: ['uniswap-v3', 'sushiswap', 'balancer-v2', 'curve'],
     features: [
       'Multi-protocol support',
-      'Enhanced health scoring',
+      'Enhanced risk scoring',
       'Market sentiment analysis',
       'Protocol risk assessment',
       'Governance scoring',
@@ -739,7 +739,7 @@ process.on('SIGTERM', () => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`DeFi Pool Health Analyzer API v2.1 (Enhanced) running on port ${PORT}`);
+  console.log(`Advanced DeFi Pool Risk Analyzer API v2.1 (Enhanced) running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Enhanced features: Multi-protocol, governance scoring, market sentiment`);
   console.log(`Data updates: Every 2 hours automatic, 12 pools per manual refresh`);
