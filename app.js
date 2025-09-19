@@ -60,25 +60,49 @@ function calculateHealthScore(poolData) {
     else if (volumeToTvlRatio < 0.5) activityScore = 7;    // High activity
     else activityScore = 3;                                // Excessive activity
     
-    // 6. Enhanced Track Record Scoring (10 points) - Updated for 2-year data
+    // 6. ENHANCED: Survivability & Risk-Adjusted Returns (15 points total)
     const dataPoints = Math.min(aprHistory.length, tvlHistory.length);
-    let trackRecordScore;
-    if (dataPoints < 180) trackRecordScore = 0;           // <6 months = 0 points
-    else if (dataPoints < 365) trackRecordScore = 3;      // 6-12 months = 3 points
-    else if (dataPoints < 730) trackRecordScore = 6;      // 1-2 years = 6 points
-    else trackRecordScore = 10;                           // 2+ years = 10 points
     
-    const totalScore = totalLiquidityScore + totalYieldScore + impermanentLossRisk + protocolScore + activityScore + trackRecordScore;
+    // A. Enhanced Track Record Scoring (10 points) - Bigger bonus for longer survival
+    let trackRecordScore;
+    if (dataPoints < 90) trackRecordScore = 0;              // <3 months = 0 points
+    else if (dataPoints < 180) trackRecordScore = 2;        // 3-6 months = 2 points
+    else if (dataPoints < 365) trackRecordScore = 5;        // 6-12 months = 5 points  
+    else if (dataPoints < 730) trackRecordScore = 8;        // 1-2 years = 8 points
+    else trackRecordScore = 10;                             // 2+ years = 10 points (big survivability bonus)
+    
+    // B. Risk-Adjusted Return Score (5 points) - Sharpe-like ratio
+    let riskAdjustedScore = 0;
+    if (aprHistory.length > 30 && aprVolatilityRobust > 0) {
+        const sharpeRatio = avgApr / (aprVolatilityRobust * 100); // Normalize volatility
+        if (sharpeRatio > 0.3) riskAdjustedScore = 5;       // Excellent risk-adjusted return
+        else if (sharpeRatio > 0.2) riskAdjustedScore = 4;  // Good risk-adjusted return  
+        else if (sharpeRatio > 0.1) riskAdjustedScore = 2;  // Fair risk-adjusted return
+        else riskAdjustedScore = 0;                         // Poor risk-adjusted return
+    }
+    
+    // 7. ADDED: Whale Concentration Risk Assessment (modifies liquidity score)
+    const whaleRiskPenalty = assessWhaleConcentrationRisk(tvl, volume24h);
+    const adjustedLiquidityScore = Math.max(0, totalLiquidityScore - whaleRiskPenalty);
+    
+    const totalScore = adjustedLiquidityScore + totalYieldScore + impermanentLossRisk + protocolScore + activityScore + trackRecordScore + riskAdjustedScore;
+    
+    // Apply pool type multiplier for final score
+    const poolTypeMultiplier = getPoolTypeMultiplier(tokenPair, poolData.platform || 'unknown');
+    const finalScore = Math.min(100, Math.max(0, totalScore * poolTypeMultiplier));
     
     return {
-        totalScore: Math.min(100, Math.max(0, totalScore)),
+        totalScore: finalScore,
         breakdown: { 
-            liquidityScore: Math.round(totalLiquidityScore * 100) / 100,
+            liquidityScore: Math.round(adjustedLiquidityScore * 100) / 100,
             yieldScore: Math.round(totalYieldScore * 100) / 100,
             impermanentLossScore: Math.round(impermanentLossRisk * 100) / 100,
             protocolScore: Math.round(protocolScore * 100) / 100,
             activityScore: Math.round(activityScore * 100) / 100,
-            trackRecordScore: Math.round(trackRecordScore * 100) / 100
+            trackRecordScore: Math.round(trackRecordScore * 100) / 100,
+            riskAdjustedScore: Math.round(riskAdjustedScore * 100) / 100,
+            whaleRiskPenalty: Math.round(whaleRiskPenalty * 100) / 100,
+            poolTypeMultiplier: Math.round(poolTypeMultiplier * 1000) / 1000
         }
     };
 }
@@ -132,7 +156,45 @@ function assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory) {
     return 8; // Unknown token pairs - highest IL risk
 }
 
-function calculateVariance(values) {
+// ADDED: Whale Concentration Risk Assessment
+function assessWhaleConcentrationRisk(tvl, volume24h) {
+    // Simulate whale dominance based on pool characteristics
+    const volumeToTvlRatio = tvl > 0 ? volume24h / tvl : 0;
+    
+    // Pools with very low activity relative to size suggest concentrated holdings
+    if (tvl > 5000000 && volumeToTvlRatio < 0.001) {
+        return 5; // Large pool with very low activity = whale dominated, high risk
+    } else if (tvl > 1000000 && volumeToTvlRatio < 0.005) {
+        return 3; // Medium pool with low activity = some concentration risk
+    } else if (volumeToTvlRatio < 0.01) {
+        return 1; // Minor concentration risk
+    }
+    
+    return 0; // No significant whale concentration detected
+}
+
+// ADDED: Enhanced pool type weighting
+function getPoolTypeMultiplier(tokenPair, platform) {
+    if (!tokenPair) return 1;
+    
+    const tokens = tokenPair.toLowerCase().split('-');
+    const stablecoins = ['usdc', 'usdt', 'dai', 'frax', 'lusd', 'busd'];
+    const majorTokens = ['weth', 'eth', 'wbtc', 'btc'];
+    
+    const stablecoinCount = tokens.filter(token => stablecoins.includes(token)).length;
+    const majorTokenCount = tokens.filter(token => majorTokens.includes(token)).length;
+    
+    // Stablecoin pairs get slight bonus for stability
+    if (stablecoinCount === 2) return 1.05;
+    
+    // Major token pairs get small bonus for established nature
+    if (majorTokenCount >= 1) return 1.02;
+    
+    // Curve pools (specialized for stables) get bonus when appropriate
+    if (platform === 'curve' && stablecoinCount >= 1) return 1.03;
+    
+    return 1; // Default multiplier
+}
     if (!values || values.length < 2) return 0;
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
     if (mean === 0) return 0;
