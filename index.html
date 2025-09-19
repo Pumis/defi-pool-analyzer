@@ -627,9 +627,17 @@
             border-radius: 50%;
         }
         
-        .concentration-high { background: #e53e3e; }
-        .concentration-medium { background: #dd6b20; }
-        .concentration-low { background: #38a169; }
+        .survivability-badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        
+        .survivability-veteran { background: #27ae60; color: white; }
+        .survivability-mature { background: #f39c12; color: white; }
+        .survivability-new { background: #e74c3c; color: white; }
         
         /* Notification */
         .notification {
@@ -1390,31 +1398,31 @@
         }
         
         function getMarketRegime() {
-            // In a real implementation, this would analyze recent market data
-            // For now, we'll simulate different market conditions
-            const regimes = [
-                { class: 'bull', label: 'Bull Market', description: 'Rising prices, higher IL risk tolerance' },
-                { class: 'bear', label: 'Bear Market', description: 'Falling prices, focus on stability over yield' },
-                { class: 'sideways', label: 'Sideways', description: 'Range-bound, stable conditions for LP' }
-            ];
-            return regimes[Math.floor(Math.random() * regimes.length)];
+            // Instead of random, use a more stable market assessment
+            // In a real implementation, this would analyze broader market indicators
+            // For now, let's use a more conservative neutral assessment
+            return { 
+                class: 'sideways', 
+                label: 'Market Neutral', 
+                description: 'Current conditions favor balanced risk assessment across all pool types' 
+            };
         }
         
         function assessAdvancedRisks(pool) {
             const risks = [];
             
-            // 1. Track Record Assessment (addressing weakness #7)
+            // 1. Track Record Assessment - Updated thresholds for realistic data collection
             const dataPoints = pool.data_points || 0;
-            if (dataPoints < 90) {
+            if (dataPoints < 180) { // 6 months instead of 90 days
                 risks.push({
                     title: 'Short Track Record Risk',
-                    description: `Only ${dataPoints} days of data available. Pools with <90 days carry higher uncertainty. DeFi protocols need extended time to prove stability and security.`,
+                    description: `Only ${dataPoints} days of data available. Pools with less than 6 months of history carry higher uncertainty and haven't been tested through different market conditions.`,
                     severity: 'high'
                 });
             } else if (dataPoints < 365) {
                 risks.push({
-                    title: 'Limited Historical Data',
-                    description: `${dataPoints} days of data. While mature, hasn't survived a full market cycle. Veteran pools (365+ days) have proven resilience through different market conditions.`,
+                    title: 'Moderate Track Record',
+                    description: `${dataPoints} days of operational history. While established, hasn't completed a full year cycle. Pools with 12+ months show better resilience patterns.`,
                     severity: 'medium'
                 });
             }
@@ -1424,7 +1432,7 @@
             if (concentrationRisk.level !== 'low') {
                 risks.push({
                     title: 'Liquidity Concentration Risk',
-                    description: 'Large holders could suddenly withdraw liquidity, causing pool instability and increased slippage.',
+                    description: 'Large holders could suddenly withdraw liquidity, causing pool instability and increased slippage for other users.',
                     severity: concentrationRisk.level === 'high' ? 'high' : 'medium',
                     concentration: concentrationRisk
                 });
@@ -1434,25 +1442,26 @@
             const protocolRisk = assessProtocolSecurityRisk(pool.platform);
             if (protocolRisk.level !== 'low') {
                 risks.push({
-                    title: 'Protocol Security Concerns',
+                    title: 'Protocol Security Considerations',
                     description: protocolRisk.description,
                     severity: protocolRisk.level
                 });
             }
             
-            // 4. TVL Volatility Analysis (addressing weakness #6)
-            const tvlVolatility = pool.apr_volatility || 0; // Using as proxy
-            if (tvlVolatility > 0.3) {
+            // 4. TVL Volatility Analysis - Fixed logic to avoid false positives
+            const aprVolatility = pool.apr_volatility || 0;
+            // Only flag if volatility is genuinely concerning (using APR volatility as more meaningful metric)
+            if (aprVolatility > 0.8) { // Much higher threshold to avoid false positives
                 risks.push({
-                    title: 'High TVL Volatility',
-                    description: `TVL volatility of ${(tvlVolatility * 100).toFixed(1)}% indicates unstable liquidity. This could signal mercenary capital or fundamental issues.`,
-                    severity: tvlVolatility > 0.5 ? 'high' : 'medium'
+                    title: 'High Yield Volatility',
+                    description: `APR volatility of ${(aprVolatility * 100).toFixed(1)}% indicates inconsistent returns. This suggests either unstable market conditions for this pair or potential yield farming manipulation.`,
+                    severity: aprVolatility > 1.5 ? 'high' : 'medium'
                 });
             }
             
             // 5. Liquidity Fragmentation (addressing weakness #3)
             const fragmentationRisk = assessFragmentationRisk(pool);
-            if (fragmentationRisk.level !== 'low') {
+            if (fragmentationRisk.level === 'high') { // Only show high fragmentation risks
                 risks.push({
                     title: 'Liquidity Fragmentation Risk',
                     description: fragmentationRisk.description,
@@ -1460,11 +1469,21 @@
                 });
             }
             
+            // 6. Volume/TVL Efficiency Warning
+            const efficiency = pool.tvl > 0 ? (pool.volume_24h / pool.tvl) : 0;
+            if (efficiency < 0.005) { // Very low activity
+                risks.push({
+                    title: 'Low Trading Activity',
+                    description: 'Very low volume relative to TVL suggests limited market interest. This could indicate poor price discovery and higher slippage for trades.',
+                    severity: 'medium'
+                });
+            }
+            
             // If no major risks, show positive indicator
             if (risks.length === 0) {
                 risks.push({
-                    title: 'Low Risk Profile Detected',
-                    description: 'This pool shows strong fundamentals across all advanced risk metrics with no major red flags identified.',
+                    title: 'Strong Risk Profile',
+                    description: 'This pool demonstrates solid fundamentals across all advanced risk metrics with no significant red flags identified in our analysis.',
                     severity: 'low'
                 });
             }
@@ -1965,9 +1984,10 @@
         }
         
         function getSurvivabilityLevel(dataPoints) {
-            if (dataPoints >= 365) return { class: 'veteran', label: 'Veteran' };
-            if (dataPoints >= 90) return { class: 'mature', label: 'Mature' };
-            return { class: 'new', label: 'New' };
+            if (dataPoints >= 730) return { class: 'veteran', label: 'Veteran' };  // 2+ years
+            if (dataPoints >= 365) return { class: 'mature', label: 'Mature' };   // 1+ year
+            if (dataPoints >= 180) return { class: 'mature', label: 'Stable' };   // 6+ months
+            return { class: 'new', label: 'New' };                               // <6 months
         }
         
         function calculateRiskAdjustedReturn(apr, volatility) {
