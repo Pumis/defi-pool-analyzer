@@ -313,7 +313,7 @@
             border-radius: 15px;
             padding: 20px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            height: 400px;
+            height: 450px;
             display: flex;
             flex-direction: column;
         }
@@ -321,8 +321,8 @@
         .chart-wrapper {
             flex: 1;
             position: relative;
-            height: 300px;
-            min-height: 300px;
+            height: 350px;
+            min-height: 350px;
         }
         
         .chart-header {
@@ -511,17 +511,59 @@
             border-left: 4px solid #667eea;
         }
         
-        .footer-disclaimer h4 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.1em;
+        .pool-enhanced-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
         }
         
-        .footer-disclaimer p {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 10px;
+        .pool-enhanced-metric {
+            text-align: center;
         }
+        
+        .pool-enhanced-metric-label {
+            font-size: 0.7em;
+            color: #888;
+            margin-bottom: 2px;
+        }
+        
+        .pool-enhanced-metric-value {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .volume-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .volume-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .volume-high { background: #27ae60; }
+        .volume-medium { background: #f39c12; }
+        .volume-low { background: #e74c3c; }
+        
+        .survivability-badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        
+        .survivability-veteran { background: #27ae60; color: white; }
+        .survivability-mature { background: #f39c12; color: white; }
+        .survivability-new { background: #e74c3c; color: white; }
         
         /* Notification */
         .notification {
@@ -670,12 +712,12 @@
             }
             
             .chart-container {
-                height: 350px;
+                height: 400px;
             }
             
             .chart-wrapper {
-                height: 250px;
-                min-height: 250px;
+                height: 300px;
+                min-height: 300px;
             }
             
             .risk-grid {
@@ -978,11 +1020,20 @@
                 const platformLogo = platformLogos[pool.platform] || '';
                 const platformName = platformNames[pool.platform] || pool.platform;
                 
+                // Enhanced metrics calculations
+                const volumeLevel = getVolumeLevel(pool.volume_24h, pool.tvl);
+                const survivability = getSurvivabilityLevel(pool.data_points || 0);
+                const riskAdjustedReturn = calculateRiskAdjustedReturn(pool.avg_apr || 0, pool.apr_volatility || 0);
+                const liquidityEfficiency = pool.tvl > 0 ? (pool.volume_24h / pool.tvl * 100) : 0;
+                
                 return `
                     <div class="pool-item ${isSelected ? 'selected' : ''}" onclick="selectPool(${JSON.stringify(pool).replace(/"/g, '&quot;')})">
                         <div class="pool-header">
                             <div class="pool-name-section">
-                                <div class="pool-name">${pool.token_pair}</div>
+                                <div class="pool-name">
+                                    ${pool.token_pair}
+                                    <span class="survivability-badge survivability-${survivability.class}">${survivability.label}</span>
+                                </div>
                                 <div class="platform-info">
                                     ${platformLogo ? `<img src="${platformLogo}" alt="${platformName}" class="platform-logo" onerror="this.style.display='none'">` : ''}
                                     <span class="platform-name">${platformName}</span>
@@ -998,11 +1049,14 @@
                         <div class="pool-stats">
                             <div class="pool-stat">
                                 <span>TVL:</span>
-                                <strong>$${formatNumber(pool.tvl)}</strong>
+                                <strong>${formatNumber(pool.tvl)}</strong>
                             </div>
                             <div class="pool-stat">
                                 <span>24h Volume:</span>
-                                <strong>$${formatNumber(pool.volume_24h)}</strong>
+                                <strong class="volume-indicator">
+                                    <span class="volume-badge volume-${volumeLevel.class}"></span>
+                                    ${formatNumber(pool.volume_24h)}
+                                </strong>
                             </div>
                             <div class="pool-stat">
                                 <span>APR:</span>
@@ -1011,6 +1065,24 @@
                             <div class="pool-stat">
                                 <span>Risk:</span>
                                 <strong>${pool.risk_category ? pool.risk_category.label : 'N/A'}</strong>
+                            </div>
+                        </div>
+                        <div class="pool-enhanced-metrics">
+                            <div class="pool-enhanced-metric">
+                                <div class="pool-enhanced-metric-label">Liquidity Efficiency</div>
+                                <div class="pool-enhanced-metric-value">${liquidityEfficiency.toFixed(2)}%</div>
+                            </div>
+                            <div class="pool-enhanced-metric">
+                                <div class="pool-enhanced-metric-label">Risk-Adj Return</div>
+                                <div class="pool-enhanced-metric-value">${riskAdjustedReturn.toFixed(2)}</div>
+                            </div>
+                            <div class="pool-enhanced-metric">
+                                <div class="pool-enhanced-metric-label">Activity Level</div>
+                                <div class="pool-enhanced-metric-value">${volumeLevel.label}</div>
+                            </div>
+                            <div class="pool-enhanced-metric">
+                                <div class="pool-enhanced-metric-label">Data Points</div>
+                                <div class="pool-enhanced-metric-value">${pool.data_points || 0}d</div>
                             </div>
                         </div>
                     </div>
@@ -1120,37 +1192,37 @@
                     label: 'Liquidity Score',
                     value: pool.liquidity_score || 0,
                     max: 25,
-                    explanation: 'Measures TVL stability and depth. Higher scores indicate more stable liquidity with less volatility. This is the most important factor (25 points) because stable liquidity reduces slippage and provides better trade execution.'
+                    explanation: 'Measures TVL stability and depth. Higher scores indicate more stable liquidity with less volatility. This is the most important factor (25 points) because stable liquidity is fundamental - it affects slippage, exit ability, and trade execution quality. Without stable liquidity, even high-yield pools become risky.'
                 },
                 {
                     label: 'Yield Score', 
                     value: pool.yield_score || 0,
                     max: 20,
-                    explanation: 'Evaluates APR sustainability and consistency. Rewards pools with stable, realistic yields over unsustainable high APRs. Consistent yields indicate healthier long-term prospects.'
+                    explanation: 'Evaluates APR sustainability and consistency over time. Rewards pools with stable, realistic yields (3-15% range) while penalizing unsustainable high APRs that often indicate farming dumps or manipulation. Consistent yields suggest healthy long-term prospects and real utility.'
                 },
                 {
                     label: 'IL Risk Score',
                     value: pool.impermanent_loss_score || 0,
                     max: 20,
-                    explanation: 'Assesses impermanent loss risk based on token correlation and volatility. Higher scores mean lower IL risk. Considers token pair relationships (e.g., stablecoin pairs have minimal IL risk).'
+                    explanation: 'Assesses impermanent loss risk based on token correlation and volatility patterns. Stablecoin pairs score highest (minimal IL), correlated pairs (ETH/stETH) score well, while exotic token pairs score lower. This helps predict potential losses from price divergence.'
                 },
                 {
                     label: 'Protocol Score',
                     value: pool.protocol_score || 0,
                     max: 15,
-                    explanation: 'Evaluates platform security, maturity, and track record. Established protocols like Uniswap and Curve receive higher scores due to their proven security and adoption.'
+                    explanation: 'Evaluates platform security, maturity, and track record. Established protocols like Uniswap (0.9/1.0) and Curve (0.85/1.0) receive higher scores due to proven security, extensive audits, and battle-tested smart contracts. Newer protocols carry higher risk.'
                 },
                 {
                     label: 'Activity Score',
                     value: pool.activity_score || 0,
                     max: 10,
-                    explanation: 'Analyzes trading volume patterns to identify healthy vs manipulated activity. Optimal activity levels indicate real usage without excessive manipulation or stagnation.'
+                    explanation: 'Analyzes trading volume patterns to identify healthy activity vs manipulation. Optimal volume/TVL ratio (2-10%) indicates real usage. Too low suggests stagnation, too high may indicate wash trading or excessive volatility.'
                 },
                 {
                     label: 'Track Record',
                     value: pool.track_record_score || 0,
                     max: 10,
-                    explanation: 'Rewards pools with longer operational history and consistent performance. More historical data allows for better risk assessment and reliability scoring.'
+                    explanation: 'Rewards pools with longer operational history and consistent performance data. Veteran pools (365+ days) get maximum points, mature pools (90+ days) get moderate scores. Longer track records allow better risk assessment and indicate protocol stability.'
                 }
             ];
             
@@ -1626,6 +1698,24 @@
             if (score >= 40) return 'health-fair';
             if (score >= 20) return 'health-poor';
             return 'health-critical';
+        }
+        
+        function getVolumeLevel(volume, tvl) {
+            const ratio = tvl > 0 ? volume / tvl : 0;
+            if (ratio >= 0.1) return { class: 'high', label: 'High' };
+            if (ratio >= 0.02) return { class: 'medium', label: 'Medium' };
+            return { class: 'low', label: 'Low' };
+        }
+        
+        function getSurvivabilityLevel(dataPoints) {
+            if (dataPoints >= 365) return { class: 'veteran', label: 'Veteran' };
+            if (dataPoints >= 90) return { class: 'mature', label: 'Mature' };
+            return { class: 'new', label: 'New' };
+        }
+        
+        function calculateRiskAdjustedReturn(apr, volatility) {
+            if (volatility === 0 || !volatility) return apr;
+            return apr / volatility; // Simple Sharpe-like ratio
         }
         
         console.log('All functions loaded successfully');
