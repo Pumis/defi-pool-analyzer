@@ -1,4 +1,4 @@
-// app.js - DeFi Pool Analyzer Backend (Enhanced with Recommendations)
+// app.js - Enhanced DeFi Pool Analyzer Backend with 2-Year Data Collection
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -16,810 +16,713 @@ const NEWS_CACHE_FILE = './news_cache.json';
 app.use(cors());
 app.use(express.json());
 
-// Comprehensive Health scoring algorithm - considers all major LP risks
+// Enhanced Health scoring algorithm - Updated for 2-year data collection
 function calculateHealthScore(poolData) {
-  const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore, tokenPair } = poolData;
-  
-  // 1. Liquidity Risk Assessment (25 points) - Most critical factor
-  const tvlVariance = calculateVariance(tvlHistory);
-  const liquidityRisk = Math.max(0, Math.min(25, 25 * Math.exp(-tvlVariance * 3))); // More sensitive to volatility
-  
-  // Bonus for absolute liquidity size (deeper = safer)
-  const liquidityBonus = Math.min(5, Math.log(Math.max(tvl, 10000)) / Math.log(10) - 4); // Bonus starts at $10K TVL
-  const totalLiquidityScore = Math.min(25, liquidityRisk + liquidityBonus);
-  
-  // 2. Yield Sustainability Assessment (20 points) - Lower sustainable yields = safer
-  const avgApr = aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0;
-  let yieldSustainabilityScore;
-  
-  if (avgApr <= 3) yieldSustainabilityScore = 20;        // Ultra safe: 0-3% (stablecoin pairs)
-  else if (avgApr <= 8) yieldSustainabilityScore = 18;   // Very safe: 3-8% (major pairs)
-  else if (avgApr <= 15) yieldSustainabilityScore = 15;  // Safe: 8-15% (established tokens)
-  else if (avgApr <= 25) yieldSustainabilityScore = 10;  // Moderate risk: 15-25%
-  else if (avgApr <= 50) yieldSustainabilityScore = 5;   // High risk: 25-50% (likely unsustainable)
-  else yieldSustainabilityScore = 2;                     // Very high risk: >50% (probable rug/farming dump)
-  
-  // Yield consistency bonus/penalty
-  const aprVariance = calculateVariance(aprHistory);
-  const yieldConsistency = Math.max(-3, Math.min(3, 3 * Math.exp(-aprVariance * 2) - 1.5));
-  const totalYieldScore = Math.max(0, Math.min(20, yieldSustainabilityScore + yieldConsistency));
-  
-  // 3. Impermanent Loss Risk (20 points) - Token correlation and volatility
-  const impermanentLossRisk = assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory);
-  
-  // 4. Protocol Security & Maturity (15 points)
-  const protocolScore = Math.min(15, Math.max(0, protocolRisk * 15));
-  
-  // 5. Market Activity Health (10 points) - Volume patterns indicate real usage vs manipulation  
-  const volumeToTvlRatio = volume24h / Math.max(tvl, 1);
-  let activityScore;
-  
-  if (volumeToTvlRatio < 0.005) activityScore = 3;       // Very low activity (stagnant)
-  else if (volumeToTvlRatio < 0.02) activityScore = 6;   // Low but healthy activity
-  else if (volumeToTvlRatio < 0.1) activityScore = 10;   // Optimal activity level
-  else if (volumeToTvlRatio < 0.5) activityScore = 7;    // High activity (could be good or manipulated)
-  else activityScore = 3;                                // Excessive activity (likely manipulation)
-  
-  // 6. Time-tested Stability (10 points) - Longer track record = more reliable
-  const dataPoints = Math.min(aprHistory.length, tvlHistory.length);
-  const trackRecordScore = Math.min(10, Math.max(0, (dataPoints - 7) / 30 * 10)); // Bonus for >7 days, max at 37+ days
-  
-  const totalScore = totalLiquidityScore + totalYieldScore + impermanentLossRisk + protocolScore + activityScore + trackRecordScore;
-  
-  return {
-    totalScore: Math.min(100, Math.max(0, totalScore)),
-    breakdown: { 
-      liquidityScore: Math.round(totalLiquidityScore * 100) / 100,
-      yieldScore: Math.round(totalYieldScore * 100) / 100,
-      impermanentLossScore: Math.round(impermanentLossRisk * 100) / 100,
-      protocolScore: Math.round(protocolScore * 100) / 100,
-      activityScore: Math.round(activityScore * 100) / 100,
-      trackRecordScore: Math.round(trackRecordScore * 100) / 100
-    }
-  };
+    const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore, tokenPair } = poolData;
+    
+    // 1. Liquidity Risk Assessment (25 points) - Most critical factor
+    const tvlVariance = calculateVariance(tvlHistory);
+    const liquidityRisk = Math.max(0, Math.min(25, 25 * Math.exp(-tvlVariance * 2))); // Adjusted sensitivity
+    
+    // Bonus for absolute liquidity size (deeper = safer)
+    const liquidityBonus = Math.min(5, Math.log(Math.max(tvl, 10000)) / Math.log(10) - 4);
+    const totalLiquidityScore = Math.min(25, liquidityRisk + liquidityBonus);
+    
+    // 2. Yield Sustainability Assessment (20 points) - Enhanced for longer periods
+    const avgApr = aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0;
+    let yieldSustainabilityScore;
+    
+    if (avgApr <= 3) yieldSustainabilityScore = 20;        // Ultra safe: 0-3% (stablecoin pairs)
+    else if (avgApr <= 8) yieldSustainabilityScore = 18;   // Very safe: 3-8% (major pairs)
+    else if (avgApr <= 15) yieldSustainabilityScore = 15;  // Safe: 8-15% (established tokens)
+    else if (avgApr <= 25) yieldSustainabilityScore = 10;  // Moderate risk: 15-25%
+    else if (avgApr <= 50) yieldSustainabilityScore = 5;   // High risk: 25-50%
+    else yieldSustainabilityScore = 2;                     // Very high risk: >50%
+    
+    // Yield consistency bonus/penalty - improved for longer data sets
+    const aprVariance = calculateVariance(aprHistory);
+    const yieldConsistency = Math.max(-3, Math.min(3, 3 * Math.exp(-aprVariance * 1.5) - 1.5));
+    const totalYieldScore = Math.max(0, Math.min(20, yieldSustainabilityScore + yieldConsistency));
+    
+    // 3. Impermanent Loss Risk (20 points)
+    const impermanentLossRisk = assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory);
+    
+    // 4. Protocol Security & Maturity (15 points)
+    const protocolScore = Math.min(15, Math.max(0, protocolRisk * 15));
+    
+    // 5. Market Activity Health (10 points)
+    const volumeToTvlRatio = volume24h / Math.max(tvl, 1);
+    let activityScore;
+    
+    if (volumeToTvlRatio < 0.005) activityScore = 3;       // Very low activity
+    else if (volumeToTvlRatio < 0.02) activityScore = 6;   // Low but healthy activity
+    else if (volumeToTvlRatio < 0.1) activityScore = 10;   // Optimal activity level
+    else if (volumeToTvlRatio < 0.5) activityScore = 7;    // High activity
+    else activityScore = 3;                                // Excessive activity
+    
+    // 6. Enhanced Track Record Scoring (10 points) - Updated for 2-year data
+    const dataPoints = Math.min(aprHistory.length, tvlHistory.length);
+    let trackRecordScore;
+    if (dataPoints < 180) trackRecordScore = 0;           // <6 months = 0 points
+    else if (dataPoints < 365) trackRecordScore = 3;      // 6-12 months = 3 points
+    else if (dataPoints < 730) trackRecordScore = 6;      // 1-2 years = 6 points
+    else trackRecordScore = 10;                           // 2+ years = 10 points
+    
+    const totalScore = totalLiquidityScore + totalYieldScore + impermanentLossRisk + protocolScore + activityScore + trackRecordScore;
+    
+    return {
+        totalScore: Math.min(100, Math.max(0, totalScore)),
+        breakdown: { 
+            liquidityScore: Math.round(totalLiquidityScore * 100) / 100,
+            yieldScore: Math.round(totalYieldScore * 100) / 100,
+            impermanentLossScore: Math.round(impermanentLossRisk * 100) / 100,
+            protocolScore: Math.round(protocolScore * 100) / 100,
+            activityScore: Math.round(activityScore * 100) / 100,
+            trackRecordScore: Math.round(trackRecordScore * 100) / 100
+        }
+    };
 }
 
 // Enhanced Impermanent Loss Risk Assessment  
 function assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory) {
-  if (!tokenPair) return 10;
-  
-  const tokens = tokenPair.toLowerCase().split('-');
-  const stablecoins = ['usdc', 'usdt', 'dai', 'frax', 'lusd', 'busd', 'usdd'];
-  const correlatedPairs = [
-    ['weth', 'eth'], ['wbtc', 'btc'], ['steth', 'weth'], ['wsteth', 'weth'], 
-    ['reth', 'weth'], ['cbeth', 'weth'], ['usdc', 'usdt'], ['dai', 'usdc']
-  ];
-  
-  // Check for stablecoin pairs (lowest IL risk)
-  const stablecoinCount = tokens.filter(token => stablecoins.includes(token)).length;
-  if (stablecoinCount === 2) return 20; // Both stablecoins - minimal IL risk
-  
-  // Check for highly correlated pairs (low IL risk)
-  const isCorrelated = correlatedPairs.some(pair => 
-    (tokens.includes(pair[0]) && tokens.includes(pair[1])) ||
-    (tokens.includes(pair[1]) && tokens.includes(pair[0]))
-  );
-  if (isCorrelated) return 18; // Highly correlated - low IL risk
-  
-  // One stablecoin + one volatile (moderate IL risk)
-  if (stablecoinCount === 1) return 15;
-  
-  // Major tokens (ETH, BTC derivatives) - moderate IL risk
-  const majorTokens = ['weth', 'eth', 'wbtc', 'btc'];
-  const majorTokenCount = tokens.filter(token => majorTokens.includes(token)).length;
-  if (majorTokenCount >= 1) return 12;
-  
-  // Established DeFi tokens - higher IL risk
-  const establishedTokens = ['uni', 'link', 'aave', 'crv', 'bal', 'comp', 'mkr', 'snx'];
-  const establishedCount = tokens.filter(token => establishedTokens.includes(token)).length;
-  if (establishedCount >= 1) return 10;
-  
-  // Check for extreme volatility indicators in historical data
-  if (aprHistory.length > 7) {
-    const recentAprVolatility = calculateVariance(aprHistory.slice(-7));
-    if (recentAprVolatility > 0.5) return 5; // Extreme recent volatility
-  }
-  
-  if (tvlHistory.length > 7) {
-    const recentTvlVolatility = calculateVariance(tvlHistory.slice(-7));
-    if (recentTvlVolatility > 0.3) return 6; // High recent TVL volatility
-  }
-  
-  // Unknown token pairs - highest IL risk
-  return 8;
+    if (!tokenPair) return 10;
+    
+    const tokens = tokenPair.toLowerCase().split('-');
+    const stablecoins = ['usdc', 'usdt', 'dai', 'frax', 'lusd', 'busd', 'usdd'];
+    const correlatedPairs = [
+        ['weth', 'eth'], ['wbtc', 'btc'], ['steth', 'weth'], ['wsteth', 'weth'], 
+        ['reth', 'weth'], ['cbeth', 'weth'], ['usdc', 'usdt'], ['dai', 'usdc']
+    ];
+    
+    // Check for stablecoin pairs (lowest IL risk)
+    const stablecoinCount = tokens.filter(token => stablecoins.includes(token)).length;
+    if (stablecoinCount === 2) return 20; // Both stablecoins - minimal IL risk
+    
+    // Check for highly correlated pairs (low IL risk)
+    const isCorrelated = correlatedPairs.some(pair => 
+        (tokens.includes(pair[0]) && tokens.includes(pair[1])) ||
+        (tokens.includes(pair[1]) && tokens.includes(pair[0]))
+    );
+    if (isCorrelated) return 18; // Highly correlated - low IL risk
+    
+    // One stablecoin + one volatile (moderate IL risk)
+    if (stablecoinCount === 1) return 15;
+    
+    // Major tokens (ETH, BTC derivatives) - moderate IL risk
+    const majorTokens = ['weth', 'eth', 'wbtc', 'btc'];
+    const majorTokenCount = tokens.filter(token => majorTokens.includes(token)).length;
+    if (majorTokenCount >= 1) return 12;
+    
+    // Established DeFi tokens - higher IL risk
+    const establishedTokens = ['uni', 'link', 'aave', 'crv', 'bal', 'comp', 'mkr', 'snx'];
+    const establishedCount = tokens.filter(token => establishedTokens.includes(token)).length;
+    if (establishedCount >= 1) return 10;
+    
+    // Check for extreme volatility indicators in historical data
+    if (aprHistory.length > 30) { // Use 30-day window for 2-year data
+        const recentAprVolatility = calculateVariance(aprHistory.slice(-30));
+        if (recentAprVolatility > 0.5) return 5;
+    }
+    
+    if (tvlHistory.length > 30) {
+        const recentTvlVolatility = calculateVariance(tvlHistory.slice(-30));
+        if (recentTvlVolatility > 0.3) return 6;
+    }
+    
+    return 8; // Unknown token pairs - highest IL risk
 }
 
 function calculateVariance(values) {
-  if (!values || values.length < 2) return 0;
-  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-  if (mean === 0) return 0;
-  const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
-  return Math.sqrt(variance) / mean;
+    if (!values || values.length < 2) return 0;
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    if (mean === 0) return 0;
+    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+    return Math.sqrt(variance) / mean;
 }
 
-// Protocol risk assessment
+// Protocol risk assessment - updated scores
 function assessProtocolRisk(project) {
-  const protocolRisk = {
-    'uniswap-v3': 0.9, // Very established
-    'sushiswap': 0.8,  // Established
-    'balancer-v2': 0.7, // Moderate
-    'curve': 0.85,     // Very established for stables
-    'pancakeswap': 0.6, // Less established on mainnet
-    'default': 0.5
-  };
-  return protocolRisk[project] || protocolRisk['default'];
-}
-
-// Governance scoring (simplified)
-function calculateGovernanceScore(project, tvl) {
-  const baseGovernance = {
-    'uniswap-v3': 0.9,
-    'sushiswap': 0.7,
-    'balancer-v2': 0.8,
-    'curve': 0.85,
-    'default': 0.5
-  };
-  
-  const base = baseGovernance[project] || baseGovernance['default'];
-  const tvlBoost = Math.min(0.2, tvl / 100000000); // Up to 0.2 boost for high TVL
-  return Math.min(1, base + tvlBoost);
-}
-
-// Pool quality filtering with enhanced criteria
-function isQualityPool(pool) {
-  if (pool.tvlUsd < 5000) return false; // Lowered minimum for more diversity
-  if (!pool.symbol || !pool.symbol.includes('-')) return false;
-  
-  // Enhanced filtering
-  const majorTokens = ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'UNI', 'LINK', 'AAVE', 'CRV', 'BAL', 'MATIC', 'OP', 'ARB'];
-  const stablecoins = ['USDC', 'USDT', 'DAI', 'FRAX', 'LUSD'];
-  const tokens = pool.symbol.split('-');
-  
-  const hasMajorToken = tokens.some(token => majorTokens.includes(token));
-  const hasStablecoin = tokens.some(token => stablecoins.includes(token));
-  const isHighTvl = pool.tvlUsd > 50000;
-  
-  return isHighTvl || hasMajorToken || hasStablecoin;
-}
-
-// News and sentiment analysis (basic implementation)
-async function fetchDefiNews() {
-  try {
-    // This would integrate with news APIs like CoinGecko, CryptoNews, etc.
-    // For now, we'll create a placeholder that could be enhanced
-    const newsData = {
-      sentiment: 'neutral', // positive, negative, neutral
-      relevantNews: [],
-      marketTrend: 'stable'
+    const protocolRisk = {
+        'uniswap-v3': 0.9,   // Very established
+        'sushiswap': 0.8,    // Established
+        'balancer-v2': 0.75, // Moderate
+        'curve': 0.85,       // Very established for stables
+        'pancakeswap': 0.6,  // Less established on mainnet
+        'default': 0.5
     };
-    
-    // Cache news for 1 hour
-    fs.writeFileSync(NEWS_CACHE_FILE, JSON.stringify({
-      data: newsData,
-      timestamp: Date.now()
-    }));
-    
-    return newsData;
-  } catch (error) {
-    console.error('Error fetching news:', error);
-    return { sentiment: 'neutral', relevantNews: [], marketTrend: 'stable' };
-  }
+    return protocolRisk[project] || protocolRisk['default'];
 }
 
-// Enhanced DefiLlama integration
+// Enhanced pool quality filtering
+function isQualityPool(pool) {
+    if (pool.tvlUsd < 5000) return false; // Minimum TVL threshold
+    if (!pool.symbol || !pool.symbol.includes('-')) return false;
+    
+    // Enhanced filtering for better pool selection
+    const majorTokens = ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'UNI', 'LINK', 'AAVE', 'CRV', 'BAL'];
+    const stablecoins = ['USDC', 'USDT', 'DAI', 'FRAX', 'LUSD'];
+    const tokens = pool.symbol.split('-');
+    
+    const hasMajorToken = tokens.some(token => majorTokens.includes(token));
+    const hasStablecoin = tokens.some(token => stablecoins.includes(token));
+    const isHighTvl = pool.tvlUsd > 50000;
+    
+    return isHighTvl || hasMajorToken || hasStablecoin;
+}
+
+// Enhanced DefiLlama integration with 2-year data collection
 const DEFI_LLAMA_POOLS_URL = "https://yields.llama.fi/pools";
 const DEFI_LLAMA_POOL_CHART_URL = "https://yields.llama.fi/chart/";
-const DEFI_LLAMA_TVL_URL = "https://api.llama.fi/protocols";
 
 async function fetchDefiLlamaPoolsEnhanced() {
-  try {
-    if (fs.existsSync(POOLS_CACHE_FILE)) {
-      const cached = JSON.parse(fs.readFileSync(POOLS_CACHE_FILE, 'utf8'));
-      const cacheAge = Date.now() - cached.timestamp;
-      if (cached && Array.isArray(cached.data) && cached.data.length > 0 && cacheAge < 3600000) { // 1 hour cache
-        console.log(`Loaded ${cached.data.length} pools from cache (${Math.round(cacheAge/60000)}min old)`);
-        return cached.data;
-      }
+    try {
+        if (fs.existsSync(POOLS_CACHE_FILE)) {
+            const cached = JSON.parse(fs.readFileSync(POOLS_CACHE_FILE, 'utf8'));
+            const cacheAge = Date.now() - cached.timestamp;
+            if (cached && Array.isArray(cached.data) && cached.data.length > 0 && cacheAge < 3600000) {
+                console.log(`Loaded ${cached.data.length} pools from cache (${Math.round(cacheAge/60000)}min old)`);
+                return cached.data;
+            }
+        }
+        
+        console.log('Fetching fresh pool data from DefiLlama...');
+        const response = await axios.get(DEFI_LLAMA_POOLS_URL, { timeout: 30000 });
+        const allPools = response.data.data;
+        
+        const supportedProjects = ['uniswap-v3', 'sushiswap', 'balancer-v2', 'curve', 'pancakeswap'];
+        const qualityPools = allPools
+            .filter(pool => supportedProjects.includes(pool.project) && pool.chain === "Ethereum")
+            .filter(isQualityPool)
+            .sort((a, b) => (b.tvlUsd || 0) - (a.tvlUsd || 0));
+        
+        console.log(`Filtered to ${qualityPools.length} quality pools from ${supportedProjects.join(', ')}`);
+        
+        fs.writeFileSync(POOLS_CACHE_FILE, JSON.stringify({
+            data: qualityPools,
+            timestamp: Date.now()
+        }));
+        
+        return qualityPools;
+    } catch (error) {
+        console.error('Error fetching DefiLlama pool data:', error.message);
+        return [];
     }
-    
-    console.log('Fetching fresh pool data from DefiLlama...');
-    const response = await axios.get(DEFI_LLAMA_POOLS_URL, { timeout: 30000 });
-    const allPools = response.data.data;
-    
-    // Enhanced filtering for multiple protocols
-    const supportedProjects = ['uniswap-v3', 'sushiswap', 'balancer-v2', 'curve', 'pancakeswap'];
-    const qualityPools = allPools
-      .filter(pool => supportedProjects.includes(pool.project) && pool.chain === "Ethereum")
-      .filter(isQualityPool)
-      .sort((a, b) => (b.tvlUsd || 0) - (a.tvlUsd || 0));
-    
-    console.log(`Filtered to ${qualityPools.length} quality pools from ${supportedProjects.join(', ')}`);
-    
-    // Cache with timestamp
-    fs.writeFileSync(POOLS_CACHE_FILE, JSON.stringify({
-      data: qualityPools,
-      timestamp: Date.now()
-    }));
-    
-    return qualityPools;
-  } catch (error) {
-    console.error('Error fetching DefiLlama pool data:', error.message);
-    return [];
-  }
 }
 
 async function fetchPoolChartEnhanced(poolId) {
-  try {
-    const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
-    const response = await axios.get(url, { timeout: 25000 });
-    
-    if (response.data && Array.isArray(response.data.data)) {
-      const daily = response.data.data;
-      const result = {
-        tvl: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, tvl: d.tvlUsd })),
-        apy: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, apy: d.apy })),
-        volume: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, volume: d.volumeUsd || 0 })),
-        fees: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, fees: d.feesUsd || 0 }))
-      };
-      return result;
+    try {
+        const url = DEFI_LLAMA_POOL_CHART_URL + encodeURIComponent(poolId);
+        const response = await axios.get(url, { timeout: 30000 });
+        
+        if (response.data && Array.isArray(response.data.data)) {
+            const daily = response.data.data;
+            const result = {
+                tvl: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, tvl: d.tvlUsd })),
+                apy: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, apy: d.apy })),
+                volume: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, volume: d.volumeUsd || 0 })),
+                fees: daily.map(d => ({ date: new Date(d.timestamp).getTime() / 1000, fees: d.feesUsd || 0 }))
+            };
+            return result;
+        }
+        return {};
+    } catch (error) {
+        if (error.response && error.response.status === 429) {
+            console.warn(`Rate limited on pool ${poolId}. Waiting 3 seconds...`);
+            await delay(3000);
+            return fetchPoolChartEnhanced(poolId);
+        }
+        console.error(`Error fetching chart for ${poolId}:`, error.message);
+        return {};
     }
-    return {};
-  } catch (error) {
-    if (error.response && error.response.status === 429) {
-      console.warn(`Rate limited on pool ${poolId}. Waiting 3 seconds...`);
-      await delay(3000);
-      return fetchPoolChartEnhanced(poolId);
-    }
-    console.error(`Error fetching chart for ${poolId}:`, error.message);
-    return {};
-  }
 }
 
 function delay(ms) {
-  return new Promise(res => setTimeout(res, ms));
+    return new Promise(res => setTimeout(res, ms));
 }
 
-// Enhanced processing with additional data points
+// Enhanced processing with 2-year data collection
 let cachedPools = [];
 let lastUpdated = null;
 let processingStats = {
-  totalProcessed: 0,
-  successRate: 0,
-  avgProcessingTime: 0,
-  lastRunDuration: 0
+    totalProcessed: 0,
+    successRate: 0,
+    avgProcessingTime: 0,
+    lastRunDuration: 0
 };
 
-function readProcessedIndex() {
-  if (fs.existsSync(PROCESSED_INDEX_FILE)) {
-    const data = JSON.parse(fs.readFileSync(PROCESSED_INDEX_FILE, 'utf8'));
-    return typeof data.index === 'number' ? data.index : 0;
-  }
-  return 0;
-}
-
-function writeProcessedIndex(idx) {
-  fs.writeFileSync(PROCESSED_INDEX_FILE, JSON.stringify({
-    index: idx,
-    timestamp: Date.now(),
-    stats: processingStats
-  }));
-}
-
-async function processPoolDataEnhanced() {
-  const startTime = Date.now();
-  
-  try {
-    console.log('Starting enhanced data processing...');
-    const allPools = await fetchDefiLlamaPoolsEnhanced();
-    
-    if (!Array.isArray(allPools) || allPools.length === 0) {
-      console.error('No pools returned. Skipping processing.');
-      return [];
+function getLastProcessedIndex() {
+    try {
+        if (fs.existsSync(PROCESSED_INDEX_FILE)) {
+            const data = JSON.parse(fs.readFileSync(PROCESSED_INDEX_FILE, 'utf8'));
+            return data.index || 0;
+        }
+    } catch (error) {
+        console.error('Error reading last processed index:', error.message);
     }
+    return 0;
+}
+
+function saveLastProcessedIndex(index) {
+    try {
+        fs.writeFileSync(PROCESSED_INDEX_FILE, JSON.stringify({ 
+            index, 
+            timestamp: Date.now() 
+        }));
+    } catch (error) {
+        console.error('Error saving last processed index:', error.message);
+    }
+}
+
+// Enhanced pool processing for 2-year data - UPDATED FOR 730 DAYS
+async function processPoolDataEnhanced(pool, maxHistory = 730) { // Changed from 365 to 730
+    const startTime = Date.now();
     
-    const processedPools = [];
-    let checked = 0;
-    let added = 0;
-    let failed = 0;
-    
-    // Dynamic batch sizing based on API performance
-    const POOLS_PER_REFRESH = 12; // Reduced for reliability
-    const DELAY_BETWEEN_REQUESTS = 2500; // Increased delay
-    const maxHistory = 365;
-    
-    let lastIndex = readProcessedIndex();
-    if (lastIndex >= allPools.length) lastIndex = 0;
-    
-    // Fetch market sentiment
-    const marketSentiment = await fetchDefiNews();
-    
-    for (let i = 0; i < POOLS_PER_REFRESH; i++) {
-      const poolIdx = (lastIndex + i) % allPools.length;
-      const pool = allPools[poolIdx];
-      checked++;
-      
-      try {
-        await delay(DELAY_BETWEEN_REQUESTS);
+    try {
+        console.log(`Processing pool: ${pool.symbol} (${pool.pool})`);
+        
+        // Fetch historical chart data
         const chart = await fetchPoolChartEnhanced(pool.pool);
         
-        console.log(`Processing ${pool.symbol} (${pool.project}) - TVL: $${pool.tvlUsd?.toLocaleString()} - Chart: ${Array.isArray(chart.tvl) ? chart.tvl.length : 'N/A'} days`);
-        
-        if (!Array.isArray(chart.tvl) || chart.tvl.length < 7) {
-          console.warn(`Insufficient data for ${pool.symbol} - skipping`);
-          failed++;
-          continue;
+        if (!chart.tvl || !chart.apy || chart.tvl.length === 0 || chart.apy.length === 0) {
+            console.log(`No chart data for ${pool.symbol}`);
+            return null;
         }
         
-        // Process historical data
+        // Extract 2-year history (or available history)
         const tvlHistory = chart.tvl.slice(-maxHistory).map(h => h.tvl || 0);
         const aprHistory = chart.apy.slice(-maxHistory).map(h => h.apy || 0);
-        const volumeHistory = chart.volume.slice(-maxHistory).map(h => h.volume || 0);
-        const feesHistory = chart.fees.slice(-maxHistory).map(h => h.fees || 0);
-        const dates = chart.tvl.slice(-maxHistory).map(e => new Date(e.date * 1000).toISOString().split('T')[0]);
+        const volumeHistory = chart.volume ? chart.volume.slice(-maxHistory).map(h => h.volume || 0) : [];
+        const feesHistory = chart.fees ? chart.fees.slice(-maxHistory).map(h => h.fees || 0) : [];
         
-        const tvl = pool.tvlUsd || (tvlHistory.length > 0 ? tvlHistory[tvlHistory.length - 1] : 0);
-        const volume24h = pool.volumeUsd1d || (volumeHistory.length > 0 ? volumeHistory[volumeHistory.length - 1] : 0);
-        const volatility = calculateVariance(tvlHistory);
-        
-        // Enhanced scoring factors
-        const protocolRisk = assessProtocolRisk(pool.project);
-        const governanceScore = calculateGovernanceScore(pool.project, tvl);
-        
-        const poolData = { 
-          tvl, 
-          volume24h, 
-          aprHistory, 
-          tvlHistory, 
-          volatility, 
-          protocolRisk,
-          governanceScore,
-          tokenPair: pool.symbol,  // Add token pair for risk assessment
-          liquidityDepth: tvl / 1000000 
-        };
-        
-        const healthScore = calculateHealthScore(poolData);
-        const riskCategory = getRiskCategory(healthScore.totalScore);
-        
-        // Calculate additional metrics
-        const avgApr = aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0;
-        const maxApr = aprHistory.length > 0 ? Math.max(...aprHistory) : 0;
-        const minApr = aprHistory.length > 0 ? Math.min(...aprHistory) : 0;
+        // Enhanced volatility calculations for 2-year data
         const aprVolatility = calculateVariance(aprHistory);
+        const tvlVolatility = calculateVariance(tvlHistory);
         
-        // Volume trends (last 7 days vs previous 7 days)
-        const recentVolume = volumeHistory.slice(-7);
-        const previousVolume = volumeHistory.slice(-14, -7);
-        const volumeTrend = recentVolume.length > 0 && previousVolume.length > 0 
-          ? (recentVolume.reduce((sum, v) => sum + v, 0) / previousVolume.reduce((sum, v) => sum + v, 0)) - 1
-          : 0;
+        // Protocol risk assessment
+        const protocolRisk = assessProtocolRisk(pool.project);
+        
+        // Calculate comprehensive health score
+        const healthData = calculateHealthScore({
+            tvl: pool.tvlUsd,
+            volume24h: pool.volumeUsd1d || 0,
+            aprHistory,
+            tvlHistory,
+            volatility: aprVolatility,
+            protocolRisk,
+            governanceScore: 0.8, // Placeholder
+            tokenPair: pool.symbol
+        });
+        
+        // Risk categorization with enhanced thresholds
+        let riskCategory;
+        if (healthData.totalScore >= 80) {
+            riskCategory = { label: 'Conservative', description: 'Low risk with stable fundamentals and proven track record.' };
+        } else if (healthData.totalScore >= 60) {
+            riskCategory = { label: 'Moderate', description: 'Balanced risk-return profile suitable for moderate investors.' };
+        } else if (healthData.totalScore >= 40) {
+            riskCategory = { label: 'Aggressive', description: 'Higher risk requiring active monitoring but potential for good returns.' };
+        } else {
+            riskCategory = { label: 'Speculative', description: 'High risk investment suitable only for experienced investors.' };
+        }
+        
+        // Data quality assessment
+        let dataQuality;
+        const dataPoints = Math.min(aprHistory.length, tvlHistory.length);
+        if (dataPoints >= 730) dataQuality = 'Excellent';      // 2+ years
+        else if (dataPoints >= 365) dataQuality = 'Good';      // 1+ years  
+        else if (dataPoints >= 180) dataQuality = 'Fair';      // 6+ months
+        else if (dataPoints >= 90) dataQuality = 'Limited';    // 3+ months
+        else dataQuality = 'Insufficient';                     // <3 months
+        
+        // Format historical data for frontend
+        const dates = chart.tvl.slice(-maxHistory).map(h => 
+            new Date(h.date * 1000).toLocaleDateString()
+        );
         
         const processedPool = {
-          pool_id: pool.pool,
-          platform: pool.project,
-          token_pair: pool.symbol,
-          token0_symbol: pool.symbol.split('-')[0],
-          token1_symbol: pool.symbol.split('-')[1] || '',
-          tvl,
-          volume_24h: volume24h,
-          avg_volume: volumeHistory.length > 0 ? volumeHistory.reduce((sum, v) => sum + v, 0) / volumeHistory.length : 0,
-          fee_tier: pool.metadata && pool.metadata.fee ? pool.metadata.fee : null,
-          
-          // Enhanced health metrics
-          health_score: Math.round(healthScore.totalScore * 100) / 100,
-          liquidity_score: healthScore.breakdown.liquidityScore,
-          yield_score: healthScore.breakdown.yieldScore,
-          impermanent_loss_score: healthScore.breakdown.impermanentLossScore,
-          protocol_score: healthScore.breakdown.protocolScore,
-          activity_score: healthScore.breakdown.activityScore,
-          track_record_score: healthScore.breakdown.trackRecordScore,
-          
-          // Additional metrics
-          risk_category: riskCategory,
-          avg_apr: Math.round(avgApr * 100) / 100,
-          max_apr: Math.round(maxApr * 100) / 100,
-          min_apr: Math.round(minApr * 100) / 100,
-          apr_volatility: Math.round(aprVolatility * 1000) / 1000,
-          volume_trend: Math.round(volumeTrend * 1000) / 1000,
-          data_points: tvlHistory.length,
-          data_quality: tvlHistory.length >= 30 ? 'high' : tvlHistory.length >= 7 ? 'medium' : 'low',
-          
-          // Market context
-          market_sentiment: marketSentiment.sentiment,
-          
-          last_updated: new Date().toISOString(),
-          historical_data: { 
-            tvl: tvlHistory, 
-            volume: volumeHistory, 
-            fees: feesHistory, 
-            apr: aprHistory, 
-            dates 
-          }
+            pool_id: pool.pool,
+            token_pair: pool.symbol,
+            platform: pool.project,
+            chain: pool.chain,
+            tvl: pool.tvlUsd,
+            volume_24h: pool.volumeUsd1d || 0,
+            avg_apr: aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0,
+            health_score: healthData.totalScore,
+            risk_category: riskCategory,
+            data_quality: dataQuality,
+            data_points: dataPoints,
+            
+            // Individual scoring components
+            liquidity_score: healthData.breakdown.liquidityScore,
+            yield_score: healthData.breakdown.yieldScore,
+            impermanent_loss_score: healthData.breakdown.impermanentLossScore,
+            protocol_score: healthData.breakdown.protocolScore,
+            activity_score: healthData.breakdown.activityScore,
+            track_record_score: healthData.breakdown.trackRecordScore,
+            
+            // Enhanced risk metrics
+            apr_volatility: aprVolatility,
+            tvl_volatility: tvlVolatility,
+            
+            // Historical data for charting
+            historical_data: {
+                dates: dates,
+                tvl: tvlHistory,
+                apr: aprHistory,
+                volume: volumeHistory,
+                fees: feesHistory
+            },
+            
+            // Metadata
+            last_updated: new Date().toISOString(),
+            processing_time: Date.now() - startTime
         };
         
-        processedPools.push(processedPool);
-        added++;
+        console.log(`✓ Processed ${pool.symbol}: Health Score ${healthData.totalScore.toFixed(1)}/100 (${dataPoints} days of data)`);
+        return processedPool;
         
-        console.log(`✓ ${pool.symbol} (${pool.project}) - Health: ${processedPool.health_score} (${riskCategory.label}) - Quality: ${processedPool.data_quality}`);
+    } catch (error) {
+        console.error(`Error processing pool ${pool.symbol}:`, error.message);
+        return null;
+    }
+}
+
+// Enhanced batch processing with better error handling
+async function processPoolsBatch(pools, startIndex = 0, batchSize = 5) {
+    const results = [];
+    const errors = [];
+    let successCount = 0;
+    const totalStartTime = Date.now();
+    
+    console.log(`\n🔄 Processing batch of ${pools.length} pools starting from index ${startIndex}...`);
+    
+    for (let i = 0; i < pools.length; i += batchSize) {
+        const batch = pools.slice(i, i + batchSize);
+        console.log(`\nProcessing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(pools.length/batchSize)} (pools ${i+1}-${Math.min(i+batchSize, pools.length)})`);
         
-      } catch (error) {
-        console.error(`Error processing pool ${pool.pool}:`, error.message);
-        failed++;
-      }
+        const batchPromises = batch.map(async (pool, batchIndex) => {
+            try {
+                const processed = await processPoolDataEnhanced(pool);
+                if (processed) {
+                    successCount++;
+                    return processed;
+                }
+            } catch (error) {
+                const globalIndex = startIndex + i + batchIndex;
+                errors.push({ pool: pool.symbol, index: globalIndex, error: error.message });
+                console.error(`❌ Failed to process ${pool.symbol} (index ${globalIndex}):`, error.message);
+            }
+            return null;
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults.filter(result => result !== null));
+        
+        // Rate limiting - wait between batches
+        if (i + batchSize < pools.length) {
+            console.log('⏱️ Waiting 2 seconds between batches...');
+            await delay(2000);
+        }
+        
+        // Save progress periodically
+        const currentIndex = startIndex + i + batchSize;
+        saveLastProcessedIndex(currentIndex);
     }
     
-    writeProcessedIndex((lastIndex + POOLS_PER_REFRESH) % allPools.length);
-    
-    // Merge with existing pools
-    let mergedPools = Array.isArray(cachedPools) ? [...cachedPools] : [];
-    for (const pool of processedPools) {
-      const idx = mergedPools.findIndex(p => p.pool_id === pool.pool_id);
-      if (idx >= 0) {
-        mergedPools[idx] = pool;
-      } else {
-        mergedPools.push(pool);
-      }
-    }
-    
-    // Sort by health score and keep top pools
-    mergedPools.sort((a, b) => b.health_score - a.health_score);
-    cachedPools = mergedPools.slice(0, 1000); // Keep top 1000 pools
-    
-    const endTime = Date.now();
-    const duration = endTime - startTime;
+    const totalDuration = Date.now() - totalStartTime;
+    const successRate = pools.length > 0 ? (successCount / pools.length) * 100 : 0;
     
     // Update processing stats
     processingStats = {
-      totalProcessed: processingStats.totalProcessed + checked,
-      successRate: Math.round(((processingStats.totalProcessed * processingStats.successRate + added) / (processingStats.totalProcessed + checked)) * 100),
-      avgProcessingTime: Math.round((processingStats.avgProcessingTime + duration/checked) / 2),
-      lastRunDuration: duration
+        totalProcessed: pools.length,
+        successCount,
+        successRate: successRate,
+        avgProcessingTime: results.length > 0 ? results.reduce((sum, p) => sum + p.processing_time, 0) / results.length : 0,
+        lastRunDuration: totalDuration,
+        errors: errors.length
     };
     
-    lastUpdated = new Date().toISOString();
+    console.log(`\n📊 Batch Processing Complete:`);
+    console.log(`   ✓ Successfully processed: ${successCount}/${pools.length} pools (${successRate.toFixed(1)}%)`);
+    console.log(`   ❌ Errors: ${errors.length}`);
+    console.log(`   ⏱️ Total time: ${(totalDuration/1000).toFixed(1)}s`);
+    console.log(`   📈 Average processing time: ${processingStats.avgProcessingTime.toFixed(0)}ms per pool`);
     
-    console.log(`Processing complete: ${checked} checked, ${added} added, ${failed} failed`);
-    console.log(`Total cached pools: ${cachedPools.length}, Success rate: ${processingStats.successRate}%`);
-    console.log(`Duration: ${Math.round(duration/1000)}s, Avg per pool: ${Math.round(duration/checked)}ms`);
-    
-    return processedPools;
-  } catch (error) {
-    console.error('Error in enhanced processing:', error);
+    return { results, errors, stats: processingStats };
+}
+
+// Enhanced caching and data management
+function saveCachedPools(pools) {
+    try {
+        const cacheData = {
+            pools: pools,
+            timestamp: Date.now(),
+            totalCount: pools.length,
+            stats: processingStats
+        };
+        
+        fs.writeFileSync(METRICS_CACHE_FILE, JSON.stringify(cacheData, null, 2));
+        console.log(`💾 Cached ${pools.length} processed pools`);
+    } catch (error) {
+        console.error('Error saving cached pools:', error.message);
+    }
+}
+
+function loadCachedPools() {
+    try {
+        if (fs.existsSync(METRICS_CACHE_FILE)) {
+            const cached = JSON.parse(fs.readFileSync(METRICS_CACHE_FILE, 'utf8'));
+            const cacheAge = Date.now() - cached.timestamp;
+            
+            if (cached.pools && Array.isArray(cached.pools) && cacheAge < 7200000) { // 2 hours cache
+                console.log(`📁 Loaded ${cached.pools.length} pools from cache (${Math.round(cacheAge/60000)}min old)`);
+                lastUpdated = new Date(cached.timestamp);
+                processingStats = cached.stats || processingStats;
+                return cached.pools;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading cached pools:', error.message);
+    }
     return [];
-  }
 }
 
-// Risk category helper
-function getRiskCategory(healthScore) {
-  if (healthScore >= 80) return { label: 'Conservative', color: '#27ae60', description: 'Low risk, stable pools suitable for conservative investors' };
-  if (healthScore >= 60) return { label: 'Moderate', color: '#f39c12', description: 'Medium risk, balanced risk-reward profile' };
-  if (healthScore >= 40) return { label: 'Aggressive', color: '#e67e22', description: 'High risk, higher potential returns for experienced users' };
-  return { label: 'Speculative', color: '#e74c3c', description: 'Very high risk, experimental pools for advanced users only' };
-}
-
-// Enhanced API routes
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Advanced DeFi Pool Risk Analyzer API (Enhanced)',
-    status: 'running',
-    version: '2.1.0',
-    totalPools: cachedPools.length,
-    lastUpdated,
-    processingStats,
-    supportedProtocols: ['uniswap-v3', 'sushiswap', 'balancer-v2', 'curve'],
-    features: [
-      'Multi-protocol support',
-      'Enhanced risk scoring',
-      'Market sentiment analysis',
-      'Protocol risk assessment',
-      'Governance scoring',
-      'Volume trend analysis'
-    ],
-    endpoints: { 
-      health: '/api/health', 
-      pools: '/api/pools', 
-      metrics: '/api/metrics', 
-      refresh: '/api/refresh',
-      top: '/api/top',
-      stats: '/api/stats'
-    },
-    dataFrequency: 'Every 2 hours automatic, manual refresh processes 12 pools',
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.get('/api/health', (req, res) => {
-  const healthStats = {
-    status: 'ok',
-    uptime: process.uptime(),
-    lastUpdated,
-    totalPools: cachedPools.length,
-    processingStats,
-    memoryUsage: process.memoryUsage(),
-    version: '2.1.0',
-    dataLatency: lastUpdated ? Math.round((Date.now() - new Date(lastUpdated).getTime()) / 60000) : null
-  };
-  res.json(healthStats);
-});
-
-// Enhanced stats endpoint
-app.get('/api/stats', async (req, res) => {
-  try {
-    const pools = cachedPools;
-    
-    const platformDistribution = {};
-    const qualityDistribution = { high: 0, medium: 0, low: 0 };
-    const aprRanges = { low: 0, medium: 0, high: 0, extreme: 0 };
-    
-    pools.forEach(pool => {
-      // Platform distribution
-      platformDistribution[pool.platform] = (platformDistribution[pool.platform] || 0) + 1;
-      
-      // Quality distribution
-      qualityDistribution[pool.data_quality]++;
-      
-      // APR ranges
-      if (pool.avg_apr < 5) aprRanges.low++;
-      else if (pool.avg_apr < 15) aprRanges.medium++;
-      else if (pool.avg_apr < 50) aprRanges.high++;
-      else aprRanges.extreme++;
-    });
-    
-    const stats = {
-      platformDistribution,
-      qualityDistribution,
-      aprRanges,
-      processingStats,
-      dataQuality: {
-        totalPools: pools.length,
-        avgDataPoints: pools.reduce((sum, p) => sum + p.data_points, 0) / pools.length,
-        oldestData: Math.min(...pools.map(p => p.data_points)),
-        newestData: Math.max(...pools.map(p => p.data_points))
-      }
-    };
-    
-    res.json({ success: true, data: stats });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Keep existing API routes but enhance metrics
-app.get('/api/pools', async (req, res) => {
-  try {
-    let { platform, minTvl, limit, sortBy, search, riskCategory, dataQuality } = req.query;
-    minTvl = minTvl ? parseFloat(minTvl) : 0;
-    limit = limit ? parseInt(limit) : 50;
-    sortBy = sortBy || 'health_score';
-    
-    let pools = [...cachedPools];
-    
-    // Apply filters
-    if (platform && platform !== 'all') {
-      pools = pools.filter(p => p.platform === platform);
-    }
-    
-    if (minTvl > 0) {
-      pools = pools.filter(p => p.tvl >= minTvl);
-    }
-    
-    if (search) {
-      const searchLower = search.toLowerCase();
-      pools = pools.filter(p => 
-        p.token_pair.toLowerCase().includes(searchLower) ||
-        p.token0_symbol.toLowerCase().includes(searchLower) ||
-        p.token1_symbol.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    if (riskCategory) {
-      pools = pools.filter(p => p.risk_category.label.toLowerCase() === riskCategory.toLowerCase());
-    }
-    
-    if (dataQuality) {
-      pools = pools.filter(p => p.data_quality === dataQuality);
-    }
-    
-    // Apply sorting
-    pools.sort((a, b) => {
-      switch (sortBy) {
-        case 'tvl':
-          return b.tvl - a.tvl;
-        case 'volume':
-          return b.volume_24h - a.volume_24h;
-        case 'apr':
-          return b.avg_apr - a.avg_apr;
-        case 'health_score':
-        default:
-          return b.health_score - a.health_score;
-      }
-    });
-    
-    const totalCount = pools.length;
-    pools = pools.slice(0, limit);
-    
-    res.json({ 
-      success: true, 
-      lastUpdated, 
-      data: pools,
-      pagination: {
-        total: totalCount,
-        limit: limit,
-        showing: pools.length
-      },
-      filters: { platform, minTvl, riskCategory, dataQuality, search },
-      sortBy
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-app.get('/api/metrics', async (req, res) => {
-  try {
-    const pools = cachedPools;
-    const totalPools = pools.length;
-    
-    const averageHealthScore = totalPools > 0 
-      ? pools.reduce((sum, p) => sum + p.health_score, 0) / totalPools 
-      : 0;
-    
-    const totalTvl = pools.reduce((sum, p) => sum + p.tvl, 0);
-    const totalVolume24h = pools.reduce((sum, p) => sum + p.volume_24h, 0);
-    
-    // Risk distribution
-    const conservative = pools.filter(p => p.health_score >= 80).length;
-    const moderate = pools.filter(p => p.health_score >= 60 && p.health_score < 80).length;
-    const aggressive = pools.filter(p => p.health_score >= 40 && p.health_score < 60).length;
-    const speculative = pools.filter(p => p.health_score < 40).length;
-    
-    // Enhanced metrics
-    const avgApr = pools.reduce((sum, p) => sum + p.avg_apr, 0) / totalPools;
-    const avgDataQuality = pools.reduce((sum, p) => sum + p.data_points, 0) / totalPools;
-    
-    const metrics = {
-      totalPools,
-      averageHealthScore: Math.round(averageHealthScore * 100) / 100,
-      totalTvl,
-      totalVolume24h,
-      avgApr: Math.round(avgApr * 100) / 100,
-      avgDataPoints: Math.round(avgDataQuality),
-      dataLatency: Math.round((Date.now() - new Date(lastUpdated).getTime()) / 60000),
-      riskDistribution: {
-        conservative,
-        moderate, 
-        aggressive,
-        speculative
-      },
-      topPerformers: pools.slice(0, 3).map(p => ({
-        symbol: p.token_pair,
-        platform: p.platform,
-        healthScore: p.health_score,
-        tvl: p.tvl,
-        riskCategory: p.risk_category.label
-      }))
-    };
-    
-    res.json({ success: true, data: metrics, lastUpdated });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Enhanced refresh with better feedback
-app.post('/api/refresh', async (req, res) => {
-  try {
-    console.log('Manual enhanced refresh triggered...');
+// Main data processing pipeline
+async function updatePoolData() {
+    console.log('\n🚀 Starting enhanced pool data update...');
     const startTime = Date.now();
-    const pools = await processPoolDataEnhanced();
-    const duration = Date.now() - startTime;
     
-    res.json({ 
-      success: true, 
-      message: `Enhanced refresh completed: ${pools.length} pools processed`,
-      totalCached: cachedPools.length,
-      duration: Math.round(duration/1000) + ' seconds',
-      processingStats,
-      data: pools.slice(0, 3) 
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+    try {
+        // Fetch raw pool data
+        const rawPools = await fetchDefiLlamaPoolsEnhanced();
+        if (rawPools.length === 0) {
+            console.log('❌ No pools fetched, keeping cached data');
+            return;
+        }
+        
+        // Process pools in batches for better performance and API compliance
+        const lastIndex = getLastProcessedIndex();
+        const poolsToProcess = rawPools.slice(0, 50); // Limit for demo
+        
+        const { results, errors, stats } = await processPoolsBatch(poolsToProcess, 0, 3);
+        
+        if (results.length > 0) {
+            // Sort by health score
+            results.sort((a, b) => b.health_score - a.health_score);
+            
+            cachedPools = results;
+            lastUpdated = new Date();
+            
+            // Save processed data
+            saveCachedPools(results);
+            
+            console.log(`\n🎉 Pool update complete! Processed ${results.length} pools in ${((Date.now() - startTime)/1000).toFixed(1)}s`);
+        } else {
+            console.log('❌ No pools successfully processed');
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in updatePoolData:', error.message);
+    }
+}
+
+// API Routes
+
+// Get processed pools with filtering
+app.get('/api/pools', async (req, res) => {
+    try {
+        let pools = cachedPools.length > 0 ? cachedPools : loadCachedPools();
+        
+        // Apply filters
+        const { platform, minTvl, riskCategory, search, limit = 20 } = req.query;
+        
+        if (platform && platform !== 'all') {
+            pools = pools.filter(p => p.platform === platform);
+        }
+        
+        if (minTvl) {
+            pools = pools.filter(p => p.tvl >= parseFloat(minTvl));
+        }
+        
+        if (riskCategory && riskCategory !== 'all') {
+            const categoryMap = {
+                'conservative': (score) => score >= 80,
+                'moderate': (score) => score >= 60 && score < 80,
+                'aggressive': (score) => score >= 40 && score < 60,
+                'speculative': (score) => score < 40
+            };
+            const filterFn = categoryMap[riskCategory];
+            if (filterFn) {
+                pools = pools.filter(p => filterFn(p.health_score));
+            }
+        }
+        
+        if (search) {
+            const searchLower = search.toLowerCase();
+            pools = pools.filter(p => 
+                p.token_pair.toLowerCase().includes(searchLower) ||
+                p.platform.toLowerCase().includes(searchLower)
+            );
+        }
+        
+        // Limit results
+        pools = pools.slice(0, parseInt(limit));
+        
+        res.json({
+            success: true,
+            data: pools,
+            total: pools.length,
+            lastUpdated: lastUpdated,
+            stats: processingStats
+        });
+        
+    } catch (error) {
+        console.error('Error in /api/pools:', error.message);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
-app.get('/api/refresh', async (req, res) => {
-  try {
-    console.log('Manual enhanced refresh triggered (GET)...');
-    const pools = await processPoolDataEnhanced();
-    res.json({ 
-      success: true, 
-      message: `Enhanced refresh completed: ${pools.length} pools processed`, 
-      totalCached: cachedPools.length,
-      processingStats,
-      data: pools.slice(0, 3) 
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
+// Get specific pool details
+app.get('/api/pools/:poolId', (req, res) => {
+    try {
+        const pools = cachedPools.length > 0 ? cachedPools : loadCachedPools();
+        const pool = pools.find(p => p.pool_id === req.params.poolId);
+        
+        if (pool) {
+            res.json({ success: true, data: pool });
+        } else {
+            res.status(404).json({ success: false, error: 'Pool not found' });
+        }
+    } catch (error) {
+        console.error('Error in /api/pools/:poolId:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
-// Enhanced top pools endpoint
-app.get('/api/top', async (req, res) => {
-  try {
-    const { category = 'health', limit = 10, platform } = req.query;
-    let pools = [...cachedPools];
-    
-    if (platform && platform !== 'all') {
-      pools = pools.filter(p => p.platform === platform);
+// Get system statistics
+app.get('/api/stats', (req, res) => {
+    try {
+        const pools = cachedPools.length > 0 ? cachedPools : loadCachedPools();
+        
+        const stats = {
+            totalPools: pools.length,
+            lastUpdated: lastUpdated,
+            processingStats,
+            healthScoreDistribution: {
+                excellent: pools.filter(p => p.health_score >= 80).length,
+                good: pools.filter(p => p.health_score >= 60 && p.health_score < 80).length,
+                fair: pools.filter(p => p.health_score >= 40 && p.health_score < 60).length,
+                poor: pools.filter(p => p.health_score < 40).length
+            },
+            platformDistribution: pools.reduce((acc, pool) => {
+                acc[pool.platform] = (acc[pool.platform] || 0) + 1;
+                return acc;
+            }, {}),
+            totalTvl: pools.reduce((sum, p) => sum + p.tvl, 0),
+            totalVolume: pools.reduce((sum, p) => sum + p.volume_24h, 0),
+            averageHealthScore: pools.length > 0 ? pools.reduce((sum, p) => sum + p.health_score, 0) / pools.length : 0
+        };
+        
+        res.json({ success: true, data: stats });
+    } catch (error) {
+        console.error('Error in /api/stats:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
-    
-    switch (category) {
-      case 'tvl':
-        pools.sort((a, b) => b.tvl - a.tvl);
-        break;
-      case 'volume':
-        pools.sort((a, b) => b.volume_24h - a.volume_24h);
-        break;
-      case 'apr':
-        pools.sort((a, b) => b.avg_apr - a.avg_apr);
-        break;
-      case 'conservative':
-        pools = pools.filter(p => p.health_score >= 80).sort((a, b) => b.health_score - a.health_score);
-        break;
-      case 'trending':
-        pools.sort((a, b) => b.volume_trend - a.volume_trend);
-        break;
-      case 'health':
-      default:
-        pools.sort((a, b) => b.health_score - a.health_score);
+});
+
+// Manual refresh endpoint
+app.post('/api/refresh', async (req, res) => {
+    try {
+        console.log('🔄 Manual refresh requested');
+        res.json({ 
+            success: true, 
+            message: 'Data refresh started. This may take several minutes.' 
+        });
+        
+        // Start update in background
+        updatePoolData().catch(console.error);
+        
+    } catch (error) {
+        console.error('Error in /api/refresh:', error.message);
+        res.status(500).json({ success: false, error: error.message });
     }
-    
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    const pools = cachedPools.length > 0 ? cachedPools : loadCachedPools();
     res.json({
-      success: true,
-      category,
-      data: pools.slice(0, parseInt(limit))
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        poolsCount: pools.length,
+        lastUpdated: lastUpdated,
+        uptime: process.uptime()
     });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
 });
 
-// Pool-specific endpoint
-app.get('/api/pools/:poolId', async (req, res) => {
-  try {
-    const { poolId } = req.params;
-    const pool = cachedPools.find(p => p.pool_id === poolId);
-    
-    if (!pool) {
-      return res.status(404).json({ success: false, error: 'Pool not found' });
+// Serve static files
+app.use(express.static('public'));
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    res.status(500).json({ 
+        success: false, 
+        error: 'Internal server error' 
+    });
+});
+
+// Initialize and start server
+async function startServer() {
+    try {
+        // Load cached data on startup
+        cachedPools = loadCachedPools();
+        
+        // Initial data update if no cached data
+        if (cachedPools.length === 0) {
+            console.log('No cached data found, starting initial data fetch...');
+            await updatePoolData();
+        }
+        
+        // Schedule regular updates every 2 hours
+        cron.schedule('0 */2 * * *', () => {
+            console.log('\n⏰ Scheduled update starting...');
+            updatePoolData().catch(console.error);
+        });
+        
+        // Start the server
+        app.listen(PORT, () => {
+            console.log(`\n🚀 DeFi Pool Health Analyzer started!`);
+            console.log(`   📊 Server running on port ${PORT}`);
+            console.log(`   💾 ${cachedPools.length} pools loaded`);
+            console.log(`   📅 Last updated: ${lastUpdated ? lastUpdated.toLocaleString() : 'Never'}`);
+            console.log(`   🔄 Next update: Every 2 hours`);
+            console.log(`\n📍 API Endpoints:`);
+            console.log(`   GET  /api/pools     - Get filtered pools`);
+            console.log(`   GET  /api/stats     - Get system statistics`);
+            console.log(`   POST /api/refresh   - Manual data refresh`);
+            console.log(`   GET  /api/health    - Health check\n`);
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to start server:', error.message);
+        process.exit(1);
     }
-    
-    res.json({ success: true, data: pool });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Scheduled updates - every 2 hours for enhanced processing
-cron.schedule('0 */2 * * *', async () => {
-  console.log('Running scheduled enhanced data update...');
-  await processPoolDataEnhanced();
-});
-
-// Initial load with enhanced processing
-setTimeout(async () => {
-  console.log('Loading initial enhanced data...');
-  await processPoolDataEnhanced();
-}, 15000);
+}
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  process.exit(0);
+process.on('SIGINT', () => {
+    console.log('\n🛑 Shutting down gracefully...');
+    process.exit(0);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Advanced DeFi Pool Risk Analyzer API v2.1 (Enhanced) running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-  console.log(`Enhanced features: Multi-protocol, governance scoring, market sentiment`);
-  console.log(`Data updates: Every 2 hours automatic, 12 pools per manual refresh`);
+process.on('SIGTERM', () => {
+    console.log('\n🛑 SIGTERM received, shutting down gracefully...');
+    process.exit(0);
 });
+
+// Start the application
+startServer();
