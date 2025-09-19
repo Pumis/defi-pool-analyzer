@@ -1252,9 +1252,9 @@
                             <div class="pool-name-section">
                                 <div class="pool-name">
                                     ${pool.token_pair}
-                                    <span class="survivability-badge survivability-${survivability.class}" data-tooltip="${getSurvivabilityTooltip(pool.data_points || 0)}">${survivability.label}</span>
-                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? `<span class="whale-warning-badge" data-tooltip="${getWhaleTooltip(pool.whale_risk_penalty)}">🐋</span>` : ''}
-                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? `<span class="bonus-badge" data-tooltip="${getBonusTooltip(pool.pool_type_multiplier, pool.token_pair, pool.platform)}">⭐</span>` : ''}
+                                    <span class="survivability-badge survivability-${survivability.class}" title="${getSurvivabilityTooltip(pool.data_points || 0)}">${survivability.label}</span>
+                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? `<span class="whale-warning-badge" title="${getWhaleTooltip(pool.whale_risk_penalty)}">🐋</span>` : ''}
+                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? `<span class="bonus-badge" title="${getBonusTooltip(pool.pool_type_multiplier, pool.token_pair, pool.platform)}">⭐</span>` : ''}
                                 </div>
                                 <div class="platform-info">
                                     ${platformLogo ? `<img src="${platformLogo}" alt="${platformName}" class="platform-logo" onerror="this.style.display='none'">` : ''}
