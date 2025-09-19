@@ -1341,7 +1341,7 @@
                     label: 'Yield Score', 
                     value: pool.yield_score || 0,
                     max: 20,
-                    explanation: 'Evaluates APR sustainability and consistency over time. Rewards pools with stable, realistic yields (3-15% range) while penalizing unsustainable high APRs that often indicate farming dumps or manipulation. Consistent yields suggest healthy long-term prospects and real utility.'
+                    explanation: 'Evaluates APR sustainability and consistency over time. Rewards pools with stable, realistic yields (3-15% range optimal) as these indicate healthy utility-driven demand. Penalizes both very low yields (<1.5%) and unsustainably high yields (>25%) that often indicate farming dumps or manipulation.'
                 },
                 {
                     label: 'IL Risk Score',
@@ -1906,15 +1906,23 @@
                 });
             }
             
-            // 4. FIXED: APR Volatility Analysis - Higher thresholds to avoid false positives
+            // 4. FIXED: APR Volatility Analysis - Much more selective thresholds
             const aprVolatility = pool.apr_volatility || 0;
-            if (aprVolatility > 0.8) { // Much higher threshold (was 0.3)
+            // Only flag genuinely concerning volatility - most pools should NOT get this warning
+            if (aprVolatility > 1.2) { // Very high threshold - only for truly volatile pools
+                risks.push({
+                    title: 'Extreme Yield Volatility',
+                    description: `APR volatility of ${(aprVolatility * 100).toFixed(1)}% indicates highly unstable returns with frequent large swings. This suggests either very unstable market conditions or potential yield farming manipulation. Consider this a high-risk investment.`,
+                    severity: 'high'
+                });
+            } else if (aprVolatility > 0.8) { // Still quite high
                 risks.push({
                     title: 'High Yield Volatility',
-                    description: `APR volatility of ${(aprVolatility * 100).toFixed(1)}% indicates inconsistent returns. This suggests either unstable market conditions for this pair or potential yield farming manipulation.`,
-                    severity: aprVolatility > 1.5 ? 'high' : 'medium'
+                    description: `APR volatility of ${(aprVolatility * 100).toFixed(1)}% indicates inconsistent returns. While not extreme, this suggests the pool may experience significant yield fluctuations. Monitor closely for stability.`,
+                    severity: 'medium'
                 });
             }
+            // Note: No warning for volatility < 0.8 (most pools should be fine)
             
             // 5. Liquidity Fragmentation - Only show high risks
             const fragmentationRisk = assessFragmentationRisk(pool);
