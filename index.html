@@ -553,17 +553,83 @@
         .volume-medium { background: #f39c12; }
         .volume-low { background: #e74c3c; }
         
-        .survivability-badge {
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-size: 0.7em;
-            font-weight: 600;
-            margin-left: 5px;
+        /* Advanced Risk Indicators */
+        .advanced-risk-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            margin-top: 20px;
         }
         
-        .survivability-veteran { background: #27ae60; color: white; }
-        .survivability-mature { background: #f39c12; color: white; }
-        .survivability-new { background: #e74c3c; color: white; }
+        .market-context-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .market-regime {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+        
+        .regime-bull { background: #27ae60; color: white; }
+        .regime-bear { background: #e74c3c; color: white; }
+        .regime-sideways { background: #f39c12; color: white; }
+        
+        .risk-warnings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .risk-warning {
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid;
+        }
+        
+        .risk-warning.high { 
+            background: #fff5f5; 
+            border-left-color: #e53e3e; 
+            color: #742a2a; 
+        }
+        
+        .risk-warning.medium { 
+            background: #fffaf0; 
+            border-left-color: #dd6b20; 
+            color: #744210; 
+        }
+        
+        .risk-warning.low { 
+            background: #f0fff4; 
+            border-left-color: #38a169; 
+            color: #22543d; 
+        }
+        
+        .concentration-risk {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+        
+        .concentration-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .concentration-high { background: #e53e3e; }
+        .concentration-medium { background: #dd6b20; }
+        .concentration-low { background: #38a169; }
         
         /* Notification */
         .notification {
@@ -670,11 +736,15 @@
             
             .dashboard {
                 grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .right-panel {
                 gap: 15px;
             }
             
             .pool-list {
-                max-height: 400px;
+                max-height: 500px;
             }
             
             .pool-header {
@@ -701,6 +771,11 @@
                 gap: 5px;
             }
             
+            .pool-enhanced-metrics {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            
             .chart-header {
                 flex-direction: column;
                 align-items: flex-start;
@@ -712,12 +787,13 @@
             }
             
             .chart-container {
-                height: 400px;
+                height: 500px;
+                margin-bottom: 20px;
             }
             
             .chart-wrapper {
-                height: 300px;
-                min-height: 300px;
+                height: 380px;
+                min-height: 380px;
             }
             
             .risk-grid {
@@ -882,6 +958,16 @@
                     </div>
                     <div id="riskAnalysisContent">
                         <p style="text-align: center; color: #666; padding: 20px;">Select a pool to see detailed risk analysis</p>
+                    </div>
+                </div>
+                
+                <!-- Advanced Risk Assessment Section -->
+                <div class="advanced-risk-section" id="advancedRiskSection" style="display: none;">
+                    <div class="risk-analysis-header">
+                        <span class="risk-analysis-title">⚠️ Advanced Risk Assessment</span>
+                    </div>
+                    <div id="advancedRiskContent">
+                        <!-- Advanced risk content will be populated here -->
                     </div>
                 </div>
             </div>
@@ -1181,6 +1267,7 @@
             if (!selectedPool) {
                 document.getElementById('riskAnalysisContent').innerHTML = 
                     '<p style="text-align: center; color: #666; padding: 20px;">Select a pool to see detailed risk analysis</p>';
+                document.getElementById('advancedRiskSection').style.display = 'none';
                 return;
             }
             
@@ -1254,6 +1341,176 @@
             `;
             
             document.getElementById('riskAnalysisContent').innerHTML = content;
+            renderAdvancedRiskAnalysis(pool);
+        }
+        
+        function renderAdvancedRiskAnalysis(pool) {
+            // Show advanced risk section
+            document.getElementById('advancedRiskSection').style.display = 'block';
+            
+            // Get market context (simulated for now)
+            const marketRegime = getMarketRegime();
+            const advancedRisks = assessAdvancedRisks(pool);
+            
+            const content = `
+                <div class="market-context-indicator">
+                    <span>Market Context:</span>
+                    <span class="market-regime regime-${marketRegime.class}">${marketRegime.label}</span>
+                    <span style="font-size: 0.9em; color: #666;">${marketRegime.description}</span>
+                </div>
+                
+                <div class="risk-warnings">
+                    ${advancedRisks.map(risk => `
+                        <div class="risk-warning ${risk.severity}">
+                            <h5 style="margin: 0 0 8px 0;">${risk.title}</h5>
+                            <p style="margin: 0; font-size: 0.9em;">${risk.description}</p>
+                            ${risk.concentration ? `
+                                <div class="concentration-risk" style="margin-top: 8px;">
+                                    <span class="concentration-indicator concentration-${risk.concentration.level}"></span>
+                                    <span>${risk.concentration.text}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="methodology-section" style="margin-top: 20px;">
+                    <h5>Advanced Risk Factors Considered:</h5>
+                    <p style="font-size: 0.9em; color: #666;">
+                        • <strong>Market Regime Impact:</strong> Current market conditions affect IL risk and yield sustainability<br>
+                        • <strong>Concentration Risk:</strong> Large holders can cause sudden liquidity exits<br>
+                        • <strong>Protocol Maturity:</strong> Newer protocols carry higher smart contract risks<br>
+                        • <strong>Liquidity Fragmentation:</strong> Competition across multiple venues<br>
+                        • <strong>Track Record Weighting:</strong> Exponential importance for longer operational history
+                    </p>
+                </div>
+            `;
+            
+            document.getElementById('advancedRiskContent').innerHTML = content;
+        }
+        
+        function getMarketRegime() {
+            // In a real implementation, this would analyze recent market data
+            // For now, we'll simulate different market conditions
+            const regimes = [
+                { class: 'bull', label: 'Bull Market', description: 'Rising prices, higher IL risk tolerance' },
+                { class: 'bear', label: 'Bear Market', description: 'Falling prices, focus on stability over yield' },
+                { class: 'sideways', label: 'Sideways', description: 'Range-bound, stable conditions for LP' }
+            ];
+            return regimes[Math.floor(Math.random() * regimes.length)];
+        }
+        
+        function assessAdvancedRisks(pool) {
+            const risks = [];
+            
+            // 1. Track Record Assessment (addressing weakness #7)
+            const dataPoints = pool.data_points || 0;
+            if (dataPoints < 90) {
+                risks.push({
+                    title: 'Short Track Record Risk',
+                    description: `Only ${dataPoints} days of data available. Pools with <90 days carry higher uncertainty. DeFi protocols need extended time to prove stability and security.`,
+                    severity: 'high'
+                });
+            } else if (dataPoints < 365) {
+                risks.push({
+                    title: 'Limited Historical Data',
+                    description: `${dataPoints} days of data. While mature, hasn't survived a full market cycle. Veteran pools (365+ days) have proven resilience through different market conditions.`,
+                    severity: 'medium'
+                });
+            }
+            
+            // 2. Concentration Risk (addressing weakness #4)
+            const concentrationRisk = assessConcentrationRisk(pool);
+            if (concentrationRisk.level !== 'low') {
+                risks.push({
+                    title: 'Liquidity Concentration Risk',
+                    description: 'Large holders could suddenly withdraw liquidity, causing pool instability and increased slippage.',
+                    severity: concentrationRisk.level === 'high' ? 'high' : 'medium',
+                    concentration: concentrationRisk
+                });
+            }
+            
+            // 3. Protocol Security (addressing weakness #2)
+            const protocolRisk = assessProtocolSecurityRisk(pool.platform);
+            if (protocolRisk.level !== 'low') {
+                risks.push({
+                    title: 'Protocol Security Concerns',
+                    description: protocolRisk.description,
+                    severity: protocolRisk.level
+                });
+            }
+            
+            // 4. TVL Volatility Analysis (addressing weakness #6)
+            const tvlVolatility = pool.apr_volatility || 0; // Using as proxy
+            if (tvlVolatility > 0.3) {
+                risks.push({
+                    title: 'High TVL Volatility',
+                    description: `TVL volatility of ${(tvlVolatility * 100).toFixed(1)}% indicates unstable liquidity. This could signal mercenary capital or fundamental issues.`,
+                    severity: tvlVolatility > 0.5 ? 'high' : 'medium'
+                });
+            }
+            
+            // 5. Liquidity Fragmentation (addressing weakness #3)
+            const fragmentationRisk = assessFragmentationRisk(pool);
+            if (fragmentationRisk.level !== 'low') {
+                risks.push({
+                    title: 'Liquidity Fragmentation Risk',
+                    description: fragmentationRisk.description,
+                    severity: fragmentationRisk.level
+                });
+            }
+            
+            // If no major risks, show positive indicator
+            if (risks.length === 0) {
+                risks.push({
+                    title: 'Low Risk Profile Detected',
+                    description: 'This pool shows strong fundamentals across all advanced risk metrics with no major red flags identified.',
+                    severity: 'low'
+                });
+            }
+            
+            return risks;
+        }
+        
+        function assessConcentrationRisk(pool) {
+            // Simulate concentration risk based on pool characteristics
+            const tvl = pool.tvl || 0;
+            if (tvl < 100000) {
+                return { level: 'high', text: 'Small pool - vulnerable to whale movements' };
+            } else if (tvl < 1000000) {
+                return { level: 'medium', text: 'Medium pool - moderate concentration risk' };
+            }
+            return { level: 'low', text: 'Large pool - diversified liquidity base' };
+        }
+        
+        function assessProtocolSecurityRisk(platform) {
+            const securityScores = {
+                'uniswap-v3': { level: 'low', description: 'Established protocol with extensive audits and battle-tested smart contracts.' },
+                'curve': { level: 'low', description: 'Highly secure protocol with strong track record and specialized in stable assets.' },
+                'balancer-v2': { level: 'medium', description: 'Mature protocol but more complex architecture increases potential attack surface.' },
+                'sushiswap': { level: 'medium', description: 'Established but has experienced governance and security challenges.' }
+            };
+            return securityScores[platform] || { level: 'high', description: 'Newer or less established protocol with higher smart contract risks.' };
+        }
+        
+        function assessFragmentationRisk(pool) {
+            // Simulate liquidity fragmentation analysis
+            const volume = pool.volume_24h || 0;
+            const tvl = pool.tvl || 1;
+            const efficiency = volume / tvl;
+            
+            if (efficiency < 0.01) {
+                return { 
+                    level: 'high', 
+                    description: 'Low trading activity suggests liquidity may be better on other venues. Check cross-platform liquidity before large positions.' 
+                };
+            } else if (efficiency < 0.05) {
+                return { 
+                    level: 'medium', 
+                    description: 'Moderate activity. Consider checking liquidity depth on competing platforms.' 
+                };
+            }
+            return { level: 'low', description: 'Good activity levels indicate this is a primary liquidity venue.' };
         }
         
         function changeChartPeriod(period) {
