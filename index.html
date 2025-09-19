@@ -1252,9 +1252,9 @@
                             <div class="pool-name-section">
                                 <div class="pool-name">
                                     ${pool.token_pair}
-                                    <span class="survivability-badge survivability-${survivability.class}" title="${getSurvivabilityTooltip(pool.data_points || 0)}">${survivability.label}</span>
-                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? `<span class="whale-warning-badge" title="${getWhaleTooltip(pool.whale_risk_penalty)}">🐋</span>` : ''}
-                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? `<span class="bonus-badge" title="${getBonusTooltip(pool.pool_type_multiplier, pool.token_pair, pool.platform)}">⭐</span>` : ''}
+                                    <span class="survivability-badge survivability-${survivability.class}" title="${survivability.class === 'veteran' ? '2+ years of operational history - Battle-tested through multiple market cycles' : survivability.class === 'mature' ? '1+ years of data - Proven stability through various market conditions' : survivability.class === 'stable' ? '6+ months of history - Established pool with decent track record' : 'Less than 6 months - New pool with limited history, higher uncertainty'}">${survivability.label}</span>
+                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 5 ? '<span class="whale-warning-badge" title="High whale risk - Large pool with very low activity suggests whale dominance">🐋</span>' : pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? '<span class="whale-warning-badge" title="Moderate whale risk - Low activity relative to pool size detected">🐋</span>' : pool.whale_risk_penalty && pool.whale_risk_penalty >= 1 ? '<span class="whale-warning-badge" title="Minor concentration risk - Some large holders may be present">🐋</span>' : ''}
+                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? '<span class="bonus-badge" title="Pool type bonus - Stablecoin pairs or established tokens get scoring bonuses">⭐</span>' : ''}
                                 </div>
                                 <div class="platform-info">
                                     ${platformLogo ? `<img src="${platformLogo}" alt="${platformName}" class="platform-logo" onerror="this.style.display='none'">` : ''}
