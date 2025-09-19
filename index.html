@@ -364,6 +364,29 @@
         .survivability-stable { background: #3498db; color: white; }   /* Blue - 6+ months */
         .survivability-new { background: #e74c3c; color: white; }      /* Red - <6 months */
         
+        /* ADDED: New visual indicators */
+        .whale-warning-badge {
+            background: #e74c3c;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: 5px;
+            cursor: help;
+        }
+        
+        .bonus-badge {
+            background: #f39c12;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: 5px;
+            cursor: help;
+        }
+        
         .chart-container {
             background: white;
             border-radius: 15px;
@@ -1175,6 +1198,8 @@
                                 <div class="pool-name">
                                     ${pool.token_pair}
                                     <span class="survivability-badge survivability-${survivability.class}">${survivability.label}</span>
+                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? '<span class="whale-warning-badge">🐋</span>' : ''}
+                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? '<span class="bonus-badge">⭐</span>' : ''}
                                 </div>
                                 <div class="platform-info">
                                     ${platformLogo ? `<img src="${platformLogo}" alt="${platformName}" class="platform-logo" onerror="this.style.display='none'">` : ''}
@@ -1205,8 +1230,8 @@
                                 <strong>${pool.avg_apr ? pool.avg_apr.toFixed(2) : 'N/A'}%</strong>
                             </div>
                             <div class="pool-stat">
-                                <span>Risk:</span>
-                                <strong>${pool.risk_category ? pool.risk_category.label : 'N/A'}</strong>
+                                <span>Risk-Adj Return:</span>
+                                <strong>${pool.risk_adjusted_score ? pool.risk_adjusted_score.toFixed(1) : 'N/A'}/5</strong>
                             </div>
                         </div>
                         <div class="pool-enhanced-metrics">
@@ -1215,8 +1240,8 @@
                                 <div class="pool-enhanced-metric-value">${liquidityEfficiency.toFixed(2)}%</div>
                             </div>
                             <div class="pool-enhanced-metric">
-                                <div class="pool-enhanced-metric-label">Risk-Adj Return</div>
-                                <div class="pool-enhanced-metric-value">${riskAdjustedReturn.toFixed(2)}</div>
+                                <div class="pool-enhanced-metric-label">Sharpe Ratio</div>
+                                <div class="pool-enhanced-metric-value">${(pool.avg_apr && pool.apr_volatility ? (pool.avg_apr / (pool.apr_volatility * 100)).toFixed(2) : 'N/A')}</div>
                             </div>
                             <div class="pool-enhanced-metric">
                                 <div class="pool-enhanced-metric-label">Activity Level</div>
@@ -1335,13 +1360,13 @@
                     label: 'Liquidity Score',
                     value: pool.liquidity_score || 0,
                     max: 25,
-                    explanation: 'Measures TVL stability and depth. Higher scores indicate more stable liquidity with less volatility. This is the most important factor (25 points) because stable liquidity is fundamental - it affects slippage, exit ability, and trade execution quality. Without stable liquidity, even high-yield pools become risky.'
+                    explanation: 'Measures TVL stability and depth, adjusted for whale concentration risk. Higher scores indicate more stable, distributed liquidity with less volatility. Large pools with very low trading activity get penalized as they may be whale-dominated.'
                 },
                 {
                     label: 'Yield Score', 
                     value: pool.yield_score || 0,
                     max: 20,
-                    explanation: 'Evaluates APR sustainability and consistency over time. Rewards pools with stable, realistic yields (3-15% range optimal) as these indicate healthy utility-driven demand. Penalizes both very low yields (<1.5%) and unsustainably high yields (>25%) that often indicate farming dumps or manipulation.'
+                    explanation: 'Evaluates APR sustainability and consistency. Rewards pools with realistic yields (5-15% optimal) while heavily penalizing very low yields (<2%) and unsustainably high yields (>40%). Stability bonuses are capped so terrible yields cannot become good scores.'
                 },
                 {
                     label: 'IL Risk Score',
@@ -1365,7 +1390,13 @@
                     label: 'Track Record',
                     value: pool.track_record_score || 0,
                     max: 10,
-                    explanation: 'Rewards pools with longer operational history and consistent performance data. Veteran pools (730+ days) get maximum points, mature pools (365+ days) get moderate scores. Longer track records allow better risk assessment and indicate protocol stability.'
+                    explanation: 'Rewards pools with longer operational history. 2+ years gets maximum points (big survivability bonus), 1-2 years gets 8 points, 6-12 months gets 5 points. Longer track records indicate protocol stability and reduced rug risk.'
+                },
+                {
+                    label: 'Risk-Adj Return',
+                    value: pool.risk_adjusted_score || 0,
+                    max: 5,
+                    explanation: 'Sharpe-like ratio measuring return per unit of risk. Calculated as APR divided by volatility. Rewards pools that deliver good yields without excessive volatility. This helps identify genuinely attractive risk/reward opportunities.'
                 }
             ];
             
@@ -1885,14 +1916,28 @@
                 });
             }
             
-            // 2. Concentration Risk
-            const concentrationRisk = assessConcentrationRisk(pool);
-            if (concentrationRisk.level !== 'low') {
+            // 2. ENHANCED: Whale Concentration Risk - now with more detailed analysis
+            const whaleRiskPenalty = pool.whale_risk_penalty || 0;
+            if (whaleRiskPenalty >= 5) {
                 risks.push({
-                    title: 'Liquidity Concentration Risk',
-                    description: 'Large holders could suddenly withdraw liquidity, causing pool instability and increased slippage for other users.',
-                    severity: concentrationRisk.level === 'high' ? 'high' : 'medium',
-                    concentration: concentrationRisk
+                    title: 'High Whale Concentration Risk',
+                    description: `Large TVL pool with very low trading activity suggests whale-dominated liquidity. Risk: Major holders could suddenly withdraw, causing severe instability and increased slippage. Penalty applied: ${whaleRiskPenalty} points.`,
+                    severity: 'high',
+                    concentration: { level: 'high', text: 'Whale-dominated pool - high exit risk' }
+                });
+            } else if (whaleRiskPenalty >= 3) {
+                risks.push({
+                    title: 'Moderate Whale Concentration Risk',
+                    description: `Medium-sized pool with low activity relative to TVL suggests concentrated holdings. While not extreme, large holders could impact pool stability. Penalty applied: ${whaleRiskPenalty} points.`,
+                    severity: 'medium',
+                    concentration: { level: 'medium', text: 'Some concentration risk detected' }
+                });
+            } else if (whaleRiskPenalty >= 1) {
+                risks.push({
+                    title: 'Minor Liquidity Concentration',
+                    description: `Low trading activity suggests some concentration risk. Monitor for changes in liquidity distribution. Small penalty applied: ${whaleRiskPenalty} point.`,
+                    severity: 'low',
+                    concentration: { level: 'low', text: 'Minor concentration detected' }
                 });
             }
             
