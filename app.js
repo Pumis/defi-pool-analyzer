@@ -18,7 +18,7 @@ app.use(express.json());
 
 // Enhanced Health scoring algorithm - Updated for 2-year data collection
 function calculateHealthScore(poolData) {
-    const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore, tokenPair } = poolData;
+    const { tvl, volume24h, aprHistory, tvlHistory, volatility, protocolRisk, governanceScore, tokenPair, platform } = poolData;
     
     // 1. Liquidity Risk Assessment (25 points) - Most critical factor
     const tvlVariance = calculateVariance(tvlHistory);
@@ -28,21 +28,26 @@ function calculateHealthScore(poolData) {
     const liquidityBonus = Math.min(5, Math.log(Math.max(tvl, 10000)) / Math.log(10) - 4);
     const totalLiquidityScore = Math.min(25, liquidityRisk + liquidityBonus);
     
-    // 2. Yield Sustainability Assessment (20 points) - Enhanced for longer periods
+    // 2. FIXED: Yield Sustainability Assessment (20 points) - No longer rewards terrible but stable yields
     const avgApr = aprHistory.length > 0 ? aprHistory.reduce((sum, apr) => sum + apr, 0) / aprHistory.length : 0;
     let yieldSustainabilityScore;
     
-    if (avgApr <= 3) yieldSustainabilityScore = 20;        // Ultra safe: 0-3% (stablecoin pairs)
-    else if (avgApr <= 8) yieldSustainabilityScore = 18;   // Very safe: 3-8% (major pairs)
-    else if (avgApr <= 15) yieldSustainabilityScore = 15;  // Safe: 8-15% (established tokens)
-    else if (avgApr <= 25) yieldSustainabilityScore = 10;  // Moderate risk: 15-25%
-    else if (avgApr <= 50) yieldSustainabilityScore = 5;   // High risk: 25-50%
-    else yieldSustainabilityScore = 2;                     // Very high risk: >50%
+    // Heavily penalize very low yields regardless of stability
+    if (avgApr < 0.5) yieldSustainabilityScore = 1;                       // Terrible: <0.5% (essentially dead pools)
+    else if (avgApr >= 0.5 && avgApr < 2) yieldSustainabilityScore = 4;   // Very poor: 0.5-2% 
+    else if (avgApr >= 2 && avgApr < 5) yieldSustainabilityScore = 12;    // Low but acceptable: 2-5%
+    else if (avgApr >= 5 && avgApr <= 15) yieldSustainabilityScore = 20;  // Optimal: 5-15% (realistic sustainable)
+    else if (avgApr > 15 && avgApr <= 25) yieldSustainabilityScore = 16;  // Good but higher risk: 15-25% 
+    else if (avgApr > 25 && avgApr <= 40) yieldSustainabilityScore = 10;  // Moderate risk: 25-40%
+    else if (avgApr > 40 && avgApr <= 60) yieldSustainabilityScore = 6;   // High risk: 40-60%
+    else yieldSustainabilityScore = 2;                                    // Very high risk: >60%
     
-    // Yield consistency bonus/penalty - improved for longer data sets
-    const aprVariance = calculateVariance(aprHistory);
-    const yieldConsistency = Math.max(-3, Math.min(3, 3 * Math.exp(-aprVariance * 1.5) - 1.5));
-    const totalYieldScore = Math.max(0, Math.min(20, yieldSustainabilityScore + yieldConsistency));
+    // IMPROVED: Volatility calculation that handles temporary spikes better
+    const aprVolatilityRobust = calculateRobustVolatility(aprHistory);
+    
+    // Stability bonus/penalty - but capped so terrible yields can't become good
+    const stabilityMultiplier = Math.max(0.5, Math.min(1.3, 1 + (0.3 * Math.exp(-aprVolatilityRobust * 3) - 0.15)));
+    const totalYieldScore = Math.max(0, Math.min(20, yieldSustainabilityScore * stabilityMultiplier));
     
     // 3. Impermanent Loss Risk (20 points)
     const impermanentLossRisk = assessImpermanentLossRisk(tokenPair, aprHistory, tvlHistory);
@@ -88,7 +93,7 @@ function calculateHealthScore(poolData) {
     const totalScore = adjustedLiquidityScore + totalYieldScore + impermanentLossRisk + protocolScore + activityScore + trackRecordScore + riskAdjustedScore;
     
     // Apply pool type multiplier for final score
-    const poolTypeMultiplier = getPoolTypeMultiplier(tokenPair, poolData.platform || 'unknown');
+    const poolTypeMultiplier = getPoolTypeMultiplier(tokenPair, platform || 'unknown');
     const finalScore = Math.min(100, Math.max(0, totalScore * poolTypeMultiplier));
     
     return {
@@ -195,6 +200,8 @@ function getPoolTypeMultiplier(tokenPair, platform) {
     
     return 1; // Default multiplier
 }
+
+function calculateVariance(values) {
     if (!values || values.length < 2) return 0;
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
     if (mean === 0) return 0;
@@ -401,7 +408,8 @@ async function processPoolDataEnhanced(pool, maxHistory = 730) { // Changed from
             volatility: aprVolatility,
             protocolRisk,
             governanceScore: 0.8, // Placeholder
-            tokenPair: pool.symbol
+            tokenPair: pool.symbol,
+            platform: pool.project
         });
         
         // Risk categorization with enhanced thresholds
@@ -450,6 +458,9 @@ async function processPoolDataEnhanced(pool, maxHistory = 730) { // Changed from
             protocol_score: healthData.breakdown.protocolScore,
             activity_score: healthData.breakdown.activityScore,
             track_record_score: healthData.breakdown.trackRecordScore,
+            risk_adjusted_score: healthData.breakdown.riskAdjustedScore,
+            whale_risk_penalty: healthData.breakdown.whaleRiskPenalty,
+            pool_type_multiplier: healthData.breakdown.poolTypeMultiplier,
             
             // Enhanced risk metrics
             apr_volatility: aprVolatility,
