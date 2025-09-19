@@ -140,6 +140,35 @@ function calculateVariance(values) {
     return Math.sqrt(variance) / mean;
 }
 
+// ADDED: Robust volatility calculation that handles temporary spikes better
+function calculateRobustVolatility(values, percentileThreshold = 0.9) {
+    if (!values || values.length < 10) return 0;
+    
+    // Calculate rolling 30-day volatilities to identify consistent vs. spike-driven volatility
+    const windowSize = Math.min(30, Math.floor(values.length / 4));
+    const rollingVolatilities = [];
+    
+    for (let i = windowSize; i < values.length; i++) {
+        const window = values.slice(i - windowSize, i);
+        const windowMean = window.reduce((sum, val) => sum + val, 0) / window.length;
+        if (windowMean > 0) {
+            const windowVariance = window.reduce((sum, val) => sum + Math.pow(val - windowMean, 2), 0) / window.length;
+            rollingVolatilities.push(Math.sqrt(windowVariance) / windowMean);
+        }
+    }
+    
+    if (rollingVolatilities.length === 0) return 0;
+    
+    // Use median volatility instead of mean to reduce impact of temporary spikes
+    rollingVolatilities.sort((a, b) => a - b);
+    const medianIndex = Math.floor(rollingVolatilities.length / 2);
+    const medianVolatility = rollingVolatilities.length % 2 === 0 
+        ? (rollingVolatilities[medianIndex - 1] + rollingVolatilities[medianIndex]) / 2
+        : rollingVolatilities[medianIndex];
+    
+    return medianVolatility;
+}
+
 // Protocol risk assessment - updated scores
 function assessProtocolRisk(project) {
     const protocolRisk = {
@@ -294,8 +323,8 @@ async function processPoolDataEnhanced(pool, maxHistory = 730) { // Changed from
         const volumeHistory = chart.volume ? chart.volume.slice(-maxHistory).map(h => h.volume || 0) : [];
         const feesHistory = chart.fees ? chart.fees.slice(-maxHistory).map(h => h.fees || 0) : [];
         
-        // Enhanced volatility calculations for 2-year data
-        const aprVolatility = calculateVariance(aprHistory);
+        // Enhanced volatility calculations for 2-year data - FIXED to use robust calculation
+        const aprVolatility = calculateRobustVolatility(aprHistory);
         const tvlVolatility = calculateVariance(tvlHistory);
         
         // Protocol risk assessment
