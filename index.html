@@ -364,7 +364,7 @@
         .survivability-stable { background: #3498db; color: white; }   /* Blue - 6+ months */
         .survivability-new { background: #e74c3c; color: white; }      /* Red - <6 months */
         
-        /* ADDED: New visual indicators */
+        /* ADDED: New visual indicators with tooltips */
         .whale-warning-badge {
             background: #e74c3c;
             color: white;
@@ -374,6 +374,7 @@
             font-weight: 600;
             margin-left: 5px;
             cursor: help;
+            position: relative;
         }
         
         .bonus-badge {
@@ -385,6 +386,60 @@
             font-weight: 600;
             margin-left: 5px;
             cursor: help;
+            position: relative;
+        }
+        
+        /* Tooltips for badges */
+        .survivability-badge, .whale-warning-badge, .bonus-badge {
+            position: relative;
+        }
+        
+        .survivability-badge::after,
+        .whale-warning-badge::after,
+        .bonus-badge::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: normal;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .survivability-badge::before,
+        .whale-warning-badge::before,
+        .bonus-badge::before {
+            content: '';
+            position: absolute;
+            bottom: 112%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #333;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .survivability-badge:hover::after,
+        .survivability-badge:hover::before,
+        .whale-warning-badge:hover::after,
+        .whale-warning-badge:hover::before,
+        .bonus-badge:hover::after,
+        .bonus-badge:hover::before {
+            opacity: 1;
+            visibility: visible;
         }
         
         .chart-container {
@@ -1197,9 +1252,9 @@
                             <div class="pool-name-section">
                                 <div class="pool-name">
                                     ${pool.token_pair}
-                                    <span class="survivability-badge survivability-${survivability.class}">${survivability.label}</span>
-                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? '<span class="whale-warning-badge">🐋</span>' : ''}
-                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? '<span class="bonus-badge">⭐</span>' : ''}
+                                    <span class="survivability-badge survivability-${survivability.class}" data-tooltip="${getSurvivabilityTooltip(pool.data_points || 0)}">${survivability.label}</span>
+                                    ${pool.whale_risk_penalty && pool.whale_risk_penalty >= 3 ? `<span class="whale-warning-badge" data-tooltip="${getWhaleTooltip(pool.whale_risk_penalty)}">🐋</span>` : ''}
+                                    ${pool.pool_type_multiplier && pool.pool_type_multiplier > 1.01 ? `<span class="bonus-badge" data-tooltip="${getBonusTooltip(pool.pool_type_multiplier, pool.token_pair, pool.platform)}">⭐</span>` : ''}
                                 </div>
                                 <div class="platform-info">
                                     ${platformLogo ? `<img src="${platformLogo}" alt="${platformName}" class="platform-logo" onerror="this.style.display='none'">` : ''}
